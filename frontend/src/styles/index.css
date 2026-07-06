@@ -1,0 +1,15 @@
+:root {
+  --branch-green-dark: #1f3d1f;
+  --branch-green: #2f5d2f;
+  --branch-green-light: #6aa84f;
+  --branch-bg: #f4f7f0;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--branch-bg);
+  color: var(--branch-green-dark);
+}
+main { max-width: 960px; margin: 0 auto; padding: 1.5rem; }

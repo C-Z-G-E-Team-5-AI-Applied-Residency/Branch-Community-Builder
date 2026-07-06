@@ -1,0 +1,14 @@
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    environment:
+      POSTGRES_USER: branch
+      POSTGRES_PASSWORD: branch
+      POSTGRES_DB: branch
+    ports:
+      - "5432:5432"
+    volumes:
+      - branch_pgdata:/var/lib/postgresql/data
+
+volumes:
+  branch_pgdata:

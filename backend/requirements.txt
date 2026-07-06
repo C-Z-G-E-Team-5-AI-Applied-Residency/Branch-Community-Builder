@@ -1,0 +1,13 @@
+fastapi
+uvicorn[standard]
+sqlalchemy
+psycopg[binary]
+geoalchemy2
+passlib[bcrypt]
+python-dotenv
+pydantic
+pydantic[email]
+pydantic-settings
+itsdangerous          # session middleware
+google-genai          # Gemini SDK
+httpx                 # Nominatim geocoding calls
