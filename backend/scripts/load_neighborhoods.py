@@ -28,9 +28,10 @@ def load(shapefile_path: str) -> None:
             conn.execute(
                 text(
                     "INSERT INTO neighborhoods (name, city, boundary) "
-                    "VALUES (:name, :city, ST_Multi(ST_GeomFromText(:wkt, 4326)))"
+                    "VALUES (:name, :city, ST_Multi(ST_CollectionExtract("
+                    "ST_MakeValid(ST_GeomFromText(:wkt, 4326)), 3)))"
                 ),
-                {"name": row["Name"], "city": row["City"], "wkt": row.geometry.wkt},
+                {"name": row["NAME"], "city": row["CITY"], "wkt": row.geometry.wkt},
             )
 
 
