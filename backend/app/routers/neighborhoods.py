@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
+from geoalchemy2 import Geometry
 from app.database import get_db
 from app.models.neighborhood import Neighborhood
 
@@ -19,7 +20,7 @@ def list_neighborhoods(
         query = query.where(Neighborhood.city == city)
     if lat is not None and lng is not None:
         point = func.ST_SetSRID(func.ST_MakePoint(lng, lat), 4326)
-        query = query.where(func.ST_Contains(Neighborhood.boundary, point))
+        query = query.where(func.ST_Contains(func.cast(Neighborhood.boundary, Geometry), point))
     neighborhoods = db.execute(query).scalars().all()
     return neighborhoods
 

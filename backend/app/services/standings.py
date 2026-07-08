@@ -12,15 +12,79 @@ Each function should:
   3. Recompute is_leader (threshold TBD as a team — e.g. hosted >= 3 or attended >= 10)
 """
 from sqlalchemy.orm import Session
+from sqlalchemy import func
+
+from app.models.neighborhood import Neighborhood
+from app.models.community_standing import CommunityStanding
+from geoalchemy2 import Geometry
 
 
 def record_hosted(db: Session, user_id: int, latitude: float, longitude: float) -> None:
-    raise NotImplementedError
-
+  point = func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326)
+  neighborhood = (
+      db.query(Neighborhood)
+      .filter(func.ST_Contains(func.cast(Neighborhood.boundary, Geometry), point))
+      .first()
+  )
+  if neighborhood is None:
+    return
+  standing = (
+    db.query(CommunityStanding)
+    .filter_by(user_id=user_id, neighborhood_id=neighborhood.neighborhood_id)
+    .first()
+  )
+  if standing is None:
+    standing = CommunityStanding(
+      user_id=user_id,
+      neighborhood_id=neighborhood.neighborhood_id,
+      events_hosted=1,
+      )
+    db.add(standing)
+  else:
+    standing.events_hosted += 1
+  db.flush()
+  recompute_leader(db, user_id, neighborhood.neighborhood_id)
 
 def record_attendance(db: Session, user_id: int, latitude: float, longitude: float) -> None:
-    raise NotImplementedError
+  point = func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326)
+
+  neighborhood = (
+    db.query(Neighborhood)
+    .filter(func.ST_Contains(func.cast(Neighborhood.boundary, Geometry), point))
+    .first()
+  )
+  if neighborhood is None:
+    return
+  
+  standing = (
+    db.query(CommunityStanding)
+    .filter_by(user_id=user_id, neighborhood_id=neighborhood.neighborhood_id)
+    .first()
+  )
+
+  if standing is None:
+    standing = CommunityStanding(
+      user_id=user_id,
+      neighborhood_id=neighborhood.neighborhood_id,
+      events_attended=1,
+    )
+    db.add(standing)
+  else:
+    standing.events_attended += 1
+  db.flush()
+  recompute_leader(db, user_id, neighborhood.neighborhood_id)
 
 
 def recompute_leader(db: Session, user_id: int, neighborhood_id: int) -> None:
-    raise NotImplementedError
+  standing = (
+    db.query(CommunityStanding)
+    .filter_by(user_id=user_id, neighborhood_id=neighborhood_id)
+    .first()
+  )
+
+  if standing is None:
+    return
+
+  standing.is_leader = standing.events_hosted >= 3 or standing.events_attended >= 10 # Placeholder numbers, fix with team
+
+  db.flush()
