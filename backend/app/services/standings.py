@@ -18,7 +18,6 @@ from sqlalchemy.orm import Session
 from app.models.community_standing import CommunityStanding
 from app.models.neighborhood import Neighborhood
 
-# TODO(team): confirm these thresholds before merging — placeholder from the ticket
 LEADER_HOSTED_THRESHOLD = 3
 LEADER_ATTENDED_THRESHOLD = 10
 
@@ -52,9 +51,8 @@ def _get_or_create_standing(
 
 
 def record_hosted(db: Session, user_id: int, latitude: float, longitude: float) -> None:
-    # TODO(Gabriel, BR-3): decide what create_event should do if this point falls
-    # outside every neighborhood — reject earlier in validation, or is a silent
-    # no-operation here fine?
+    # Points outside every neighborhood polygon are a silent no-op: the event
+    # still exists, it just doesn't count toward any neighborhood standing.
     neighborhood_id = _resolve_neighborhood_id(db, latitude, longitude)
     if neighborhood_id is None:
         return
@@ -68,8 +66,8 @@ def record_hosted(db: Session, user_id: int, latitude: float, longitude: float) 
 
 
 def record_attendance(db: Session, user_id: int, latitude: float, longitude: float) -> None:
-    # TODO(Emily, BR-8/BR-9): check_in/update_rsvp need to pass the event's own
-    # latitude/longitude here (not the user's current location) — confirm signature.
+    # Callers (check_in, update_rsvp) pass the EVENT's latitude/longitude,
+    # not the attendee's current location.
     neighborhood_id = _resolve_neighborhood_id(db, latitude, longitude)
     if neighborhood_id is None:
         return
