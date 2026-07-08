@@ -4,10 +4,11 @@ from sqlalchemy import select, func
 from geoalchemy2 import Geometry
 from app.database import get_db
 from app.models.neighborhood import Neighborhood
+from app.schemas.neighborhood import NeighborhoodOut
 
 router = APIRouter(prefix="/api/neighborhoods", tags=["neighborhoods"])
 
-@router.get("")
+@router.get("", response_model=list[NeighborhoodOut])
 def list_neighborhoods(
     lat: float | None = None,
     lng: float | None = None,
@@ -25,7 +26,7 @@ def list_neighborhoods(
     return neighborhoods
 
 
-@router.get("/{neighborhood_id}")
+@router.get("/{neighborhood_id}", response_model=NeighborhoodOut)
 def get_neighborhood(neighborhood_id: int, db: Session = Depends(get_db)):
     """Single neighborhood. 200 / 404."""
     neighborhood = db.get(Neighborhood, neighborhood_id)
