@@ -7,3 +7,7 @@ class TagOut(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class InterestCreate(BaseModel):
+    tag_id: int
