@@ -10,6 +10,7 @@ from app.database import get_db
 from app.models.event import Event
 from app.models.tag import EventTag, Tag
 from app.schemas.event import EventCreate, EventUpdate
+from app.schemas.tag import TagAdd
 from app.services import standings
 
 router = APIRouter(prefix="/api/events", tags=["events"])
@@ -162,20 +163,56 @@ def delete_event(event_id: int, request: Request, db: Session = Depends(get_db))
 # --- event tags ---------------------------------------------------------------
 @router.get("/{event_id}/tags")
 def list_event_tags(event_id: int, db: Session = Depends(get_db)):
-    """Tags on an event. 200."""
-    raise NotImplementedError
+    """Tags on an event. 200 / 404."""
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    tags_by_event = _tags_by_event(db, [event_id])
+    return tags_by_event.get(event_id, [])
 
 
 @router.post("/{event_id}/tags", status_code=201)
-def add_event_tag(event_id: int, request: Request, db: Session = Depends(get_db)):
-    """Attach a tag (host only). 201 / 401 / 403 / 409."""
-    raise NotImplementedError
+def add_event_tag(event_id: int, body: TagAdd, request: Request, db: Session = Depends(get_db)):
+    """Attach a tag (host only). 201 / 401 / 403 / 404 / 409."""
+    current_user_id = require_user(request)
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    if event.host_id != current_user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
+
+    existing = db.execute(
+        select(EventTag).where(EventTag.event_id == event_id, EventTag.tag_id == body.tag_id)
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Tag already attached to this event")
+
+    db.add(EventTag(event_id=event_id, tag_id=body.tag_id))
+    db.commit()
+
+    tag = db.get(Tag, body.tag_id)
+    return {"tag_id": tag.tag_id, "name": tag.name}
 
 
 @router.delete("/{event_id}/tags/{tag_id}")
 def remove_event_tag(event_id: int, tag_id: int, request: Request, db: Session = Depends(get_db)):
     """Remove a tag (host only). 200 / 401 / 403 / 404."""
-    raise NotImplementedError
+    current_user_id = require_user(request)
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    if event.host_id != current_user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
+
+    event_tag = db.execute(
+        select(EventTag).where(EventTag.event_id == event_id, EventTag.tag_id == tag_id)
+    ).scalar_one_or_none()
+    if event_tag is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tag not attached to this event")
+
+    db.delete(event_tag)
+    db.commit()
+    return {"message": "tag removed"}
 
 
 # --- rsvps nested under events ------------------------------------------------
