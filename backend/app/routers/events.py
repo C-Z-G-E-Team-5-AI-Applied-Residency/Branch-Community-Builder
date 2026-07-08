@@ -1,5 +1,5 @@
 import secrets
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import cast, func, select
@@ -14,6 +14,7 @@ from app.models.rsvp import Rsvp
 from app.models.tag import EventTag, Tag
 from app.models.user import User
 from app.schemas.event import EventCreate, EventUpdate
+from app.schemas.rsvp import CheckInRequest
 from app.schemas.tag import TagAdd
 from app.services import standings
 
@@ -293,6 +294,32 @@ def create_rsvp(event_id: int, request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/{event_id}/check-in")
-def check_in(event_id: int, request: Request, db: Session = Depends(get_db)):
+def check_in(event_id: int, body: CheckInRequest, request: Request, db: Session = Depends(get_db)):
     """Verify attendance via the host's QR code value. 200 / 400 / 401 / 403 / 404 / 409."""
-    raise NotImplementedError
+    user_id = require_user(request)
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+
+    if not event.check_in_code or body.code != event.check_in_code:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid check-in code")
+
+    # Generous window so demos work: from 24h before start to 24h after.
+    now = datetime.now(timezone.utc)
+    if abs((event.event_date - now).total_seconds()) > 24 * 3600:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Check-in is only open around the event time")
+
+    rsvp = db.execute(
+        select(Rsvp).where(Rsvp.user_id == user_id, Rsvp.event_id == event_id)
+    ).scalar_one_or_none()
+    if rsvp is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No RSVP for this event")
+    if rsvp.did_attend:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Already checked in")
+
+    rsvp.did_attend = True
+    rsvp.checked_in_at = now
+    standings.record_attendance(db, user_id, event.latitude, event.longitude)
+    db.commit()
+    db.refresh(rsvp)
+    return _serialize_rsvp(rsvp)
