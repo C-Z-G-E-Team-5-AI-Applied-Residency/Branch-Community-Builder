@@ -11,12 +11,54 @@ export default function Discover() {
   const [recs, setRecs] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
   const [notice, setNotice] = useState(null);
+  const [zip, setZip] = useState("");
+  const [center, setCenter] = useState(null); // [lat, lng] from "use my location"
+  const [searchNote, setSearchNote] = useState(null);
 
   useEffect(() => {
     api.listEvents({ status: "open" }).then(setEvents).catch(() => setEvents([]));
     if (me) api.getRecommendations(me.user_id).then(setRecs).catch(() => setRecs([]));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function onZipSearch(e) {
+    e.preventDefault();
+    setSearchNote(null);
+    try {
+      const found = await api.listEvents({ status: "open", zip_code: zip });
+      setEvents(found);
+      if (found.length) setCenter([found[0].latitude, found[0].longitude]);
+      else setSearchNote(`No open events in ${zip}.`);
+    } catch (err) {
+      setSearchNote(err.message);
+    }
+  }
+
+  function onUseMyLocation() {
+    setSearchNote(null);
+    if (!navigator.geolocation) {
+      setSearchNote("Geolocation is not available in this browser.");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      async ({ coords }) => {
+        try {
+          const found = await api.listEvents({
+            status: "open",
+            lat: coords.latitude,
+            lng: coords.longitude,
+            radius: 10,
+          });
+          setEvents(found);
+          setCenter([coords.latitude, coords.longitude]);
+          if (!found.length) setSearchNote("No open events within 10 miles.");
+        } catch (err) {
+          setSearchNote(err.message);
+        }
+      },
+      () => setSearchNote("Couldn't get your location — check browser permissions.")
+    );
+  }
 
   async function onRefreshRecs() {
     setRefreshing(true);
@@ -68,7 +110,20 @@ export default function Discover() {
       )}
 
       <h2>Events</h2>
-      <EventMap events={events} />
+      <form onSubmit={onZipSearch} style={{ display: "flex", gap: "0.5rem", marginBottom: "0.5rem" }}>
+        <input
+          value={zip}
+          onChange={(e) => setZip(e.target.value)}
+          placeholder="Search by ZIP"
+          pattern="\d{5}"
+        />
+        <button type="submit">Search</button>
+        <button type="button" onClick={onUseMyLocation}>
+          Use my location
+        </button>
+      </form>
+      {searchNote && <p role="status">{searchNote}</p>}
+      {center ? <EventMap key={center.join(",")} events={events} center={center} /> : <EventMap events={events} />}
       {events.length ? (
         events.map((event) => <EventCard key={event.event_id} event={event} />)
       ) : (
