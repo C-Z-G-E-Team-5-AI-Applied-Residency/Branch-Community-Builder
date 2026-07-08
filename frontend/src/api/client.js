@@ -10,27 +10,80 @@ async function request(path, { method = "GET", body } = {}) {
   });
   if (!res.ok) {
     const msg = await res.json().catch(() => ({}));
-    throw new Error(msg.message || `Request failed: ${res.status}`);
+    throw new Error(msg.detail || msg.message || `Request failed: ${res.status}`);
   }
   return res.status === 204 ? null : res.json();
+}
+
+// {lat: 1, lng: null} -> "?lat=1" (null/undefined/"" params dropped)
+function toQuery(filters = {}) {
+  const params = new URLSearchParams();
+  for (const [key, value] of Object.entries(filters)) {
+    if (value !== null && value !== undefined && value !== "") params.set(key, value);
+  }
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
+// The signed-in user ({user_id, username, email}), mirrored in localStorage so
+// pages know who "me" is. The session itself lives in the http-only cookie.
+const USER_KEY = "branch_user";
+export function currentUser() {
+  try {
+    return JSON.parse(localStorage.getItem(USER_KEY));
+  } catch {
+    return null;
+  }
+}
+function rememberUser(user) {
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  return user;
 }
 
 export const api = {
   // auth
   signup: (data) => request("/api/auth/signup", { method: "POST", body: data }),
-  login: (data) => request("/api/auth/login", { method: "POST", body: data }),
-  logout: () => request("/api/auth/logout", { method: "POST" }),
+  login: (data) =>
+    request("/api/auth/login", { method: "POST", body: data }).then(rememberUser),
+  logout: () =>
+    request("/api/auth/logout", { method: "POST" }).finally(() =>
+      localStorage.removeItem(USER_KEY)
+    ),
   // events
-  listEvents: (params = "") => request(`/api/events${params}`),
+  listEvents: (filters = {}) => request(`/api/events${toQuery(filters)}`),
   getEvent: (id) => request(`/api/events/${id}`),
   createEvent: (data) => request("/api/events", { method: "POST", body: data }),
+  updateEvent: (id, data) => request(`/api/events/${id}`, { method: "PATCH", body: data }),
+  deleteEvent: (id) => request(`/api/events/${id}`, { method: "DELETE" }),
+  // rsvps
   rsvp: (eventId) => request(`/api/events/${eventId}/rsvps`, { method: "POST", body: {} }),
+  getEventRsvps: (eventId, filters = {}) =>
+    request(`/api/events/${eventId}/rsvps${toQuery(filters)}`),
+  getUserRsvps: (userId) => request(`/api/users/${userId}/rsvps`),
+  updateRsvp: (rsvpId, data) => request(`/api/rsvps/${rsvpId}`, { method: "PATCH", body: data }),
+  deleteRsvp: (rsvpId) => request(`/api/rsvps/${rsvpId}`, { method: "DELETE" }),
   checkIn: (eventId, code) =>
     request(`/api/events/${eventId}/check-in`, { method: "POST", body: { code } }),
-  // profiles / recommendations / tags
+  // users / profiles
+  getUser: (userId) => request(`/api/users/${userId}`),
   getProfile: (userId) => request(`/api/profiles/${userId}`),
+  createProfile: (data) => request("/api/profiles", { method: "POST", body: data }),
+  updateProfile: (userId, data) =>
+    request(`/api/profiles/${userId}`, { method: "PATCH", body: data }),
+  // interests / tags
+  listTags: () => request("/api/tags"),
+  getUserInterests: (userId) => request(`/api/users/${userId}/interests`),
+  addInterest: (userId, tagId) =>
+    request(`/api/users/${userId}/interests`, { method: "POST", body: { tag_id: tagId } }),
+  removeInterest: (userId, tagId) =>
+    request(`/api/users/${userId}/interests/${tagId}`, { method: "DELETE" }),
+  // standings / neighborhoods
+  getUserStandings: (userId) => request(`/api/users/${userId}/standings`),
+  getNeighborhoodStandings: (neighborhoodId, filters = {}) =>
+    request(`/api/neighborhoods/${neighborhoodId}/standings${toQuery(filters)}`),
+  listNeighborhoods: (filters = {}) => request(`/api/neighborhoods${toQuery(filters)}`),
+  // recommendations
   getRecommendations: (userId) => request(`/api/users/${userId}/recommendations`),
   refreshRecommendations: (userId) =>
     request(`/api/users/${userId}/recommendations/refresh`, { method: "POST" }),
-  listTags: () => request("/api/tags"),
 };

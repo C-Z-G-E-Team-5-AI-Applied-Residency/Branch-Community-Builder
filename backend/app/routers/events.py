@@ -1,15 +1,20 @@
-from datetime import datetime
+import secrets
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import cast, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from geoalchemy2 import Geography
 
-from app.core.security import require_user
+from app.core.security import current_user_id, require_user
 from app.database import get_db
 from app.models.event import Event
+from app.models.rsvp import Rsvp
 from app.models.tag import EventTag, Tag
+from app.models.user import User
 from app.schemas.event import EventCreate, EventUpdate
+from app.schemas.rsvp import CheckInRequest
 from app.schemas.tag import TagAdd
 from app.services import standings
 
@@ -31,8 +36,8 @@ def _tags_by_event(db: Session, event_ids: list[int]) -> dict[int, list[dict]]:
     return tags_by_event
 
 
-def _serialize_event(event: Event, tags: list[dict]) -> dict:
-    return {
+def _serialize_event(event: Event, tags: list[dict], *, include_check_in_code: bool = False) -> dict:
+    out = {
         "event_id": event.event_id,
         "title": event.title,
         "event_date": event.event_date,
@@ -47,6 +52,9 @@ def _serialize_event(event: Event, tags: list[dict]) -> dict:
         "longitude": event.longitude,
         "tags": tags,
     }
+    if include_check_in_code:
+        out["check_in_code"] = event.check_in_code
+    return out
 
 
 @router.get("")
@@ -81,13 +89,14 @@ def list_events(
 
 
 @router.get("/{event_id}")
-def get_event(event_id: int, db: Session = Depends(get_db)):
-    """Single event with tags. 200 / 404."""
+def get_event(event_id: int, request: Request, db: Session = Depends(get_db)):
+    """Single event with tags. 200 / 404. check_in_code is host-only."""
     event = db.get(Event, event_id)
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
     tags_by_event = _tags_by_event(db, [event_id])
-    return _serialize_event(event, tags_by_event.get(event_id, []))
+    is_host = current_user_id(request) == event.host_id
+    return _serialize_event(event, tags_by_event.get(event_id, []), include_check_in_code=is_host)
 
 
 @router.post("", status_code=201)
@@ -107,22 +116,22 @@ def create_event(body: EventCreate, request: Request, db: Session = Depends(get_
         event_image_url=body.event_image_url,
         latitude=body.latitude,
         longitude=body.longitude,
+        check_in_code=secrets.token_urlsafe(12),
     )
     db.add(event)
     db.flush()
 
     db.add_all(EventTag(event_id=event.event_id, tag_id=tag_id) for tag_id in body.tag_ids)
 
-    # Neighborhood coverage is best-effort: record_hosted no-ops when no
-    # neighborhood polygon contains this point (see plan notes). Not yet
-    # implemented (Zane's function) -- will raise NotImplementedError today.
+    # Best-effort: record_hosted no-ops when no neighborhood polygon
+    # contains this point.
     standings.record_hosted(db, host_id, body.latitude, body.longitude)
 
     db.commit()
     db.refresh(event)
 
     tags_by_event = _tags_by_event(db, [event.event_id])
-    return _serialize_event(event, tags_by_event.get(event.event_id, []))
+    return _serialize_event(event, tags_by_event.get(event.event_id, []), include_check_in_code=True)
 
 
 @router.patch("/{event_id}")
@@ -181,6 +190,10 @@ def add_event_tag(event_id: int, body: TagAdd, request: Request, db: Session = D
     if event.host_id != current_user_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
 
+    tag = db.get(Tag, body.tag_id)
+    if tag is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tag not found")
+
     existing = db.execute(
         select(EventTag).where(EventTag.event_id == event_id, EventTag.tag_id == body.tag_id)
     ).scalar_one_or_none()
@@ -189,8 +202,6 @@ def add_event_tag(event_id: int, body: TagAdd, request: Request, db: Session = D
 
     db.add(EventTag(event_id=event_id, tag_id=body.tag_id))
     db.commit()
-
-    tag = db.get(Tag, body.tag_id)
     return {"tag_id": tag.tag_id, "name": tag.name}
 
 
@@ -216,24 +227,99 @@ def remove_event_tag(event_id: int, tag_id: int, request: Request, db: Session =
 
 
 # --- rsvps nested under events ------------------------------------------------
+def _serialize_rsvp(rsvp: Rsvp, username: str | None = None) -> dict:
+    out = {
+        "rsvp_id": rsvp.rsvp_id,
+        "user_id": rsvp.user_id,
+        "event_id": rsvp.event_id,
+        "status": rsvp.status,
+        "did_attend": rsvp.did_attend,
+        "created_at": rsvp.created_at,
+        "checked_in_at": rsvp.checked_in_at,
+    }
+    if username is not None:
+        out["username"] = username
+    return out
+
+
 @router.get("/{event_id}/rsvps")
 def list_event_rsvps(
     event_id: int,
-    status: str | None = None,
+    status_filter: str | None = Query(default=None, alias="status"),
     did_attend: bool | None = None,
     db: Session = Depends(get_db),
 ):
     """All RSVPs for an event (host view). 200 / 404."""
-    raise NotImplementedError
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+
+    stmt = (
+        select(Rsvp, User.username)
+        .join(User, User.user_id == Rsvp.user_id)
+        .where(Rsvp.event_id == event_id)
+    )
+    if status_filter is not None:
+        stmt = stmt.where(Rsvp.status == status_filter)
+    if did_attend is not None:
+        stmt = stmt.where(Rsvp.did_attend == did_attend)
+
+    rows = db.execute(stmt).all()
+    return [_serialize_rsvp(rsvp, username) for rsvp, username in rows]
 
 
 @router.post("/{event_id}/rsvps", status_code=201)
 def create_rsvp(event_id: int, request: Request, db: Session = Depends(get_db)):
     """RSVP the authenticated user to an event. 201 / 401 / 404 / 409."""
-    raise NotImplementedError
+    user_id = require_user(request)
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+
+    existing = db.execute(
+        select(Rsvp).where(Rsvp.user_id == user_id, Rsvp.event_id == event_id)
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Already RSVP'd to this event")
+
+    rsvp = Rsvp(user_id=user_id, event_id=event_id, status="going")
+    db.add(rsvp)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Already RSVP'd to this event")
+    db.refresh(rsvp)
+    return _serialize_rsvp(rsvp)
 
 
 @router.post("/{event_id}/check-in")
-def check_in(event_id: int, request: Request, db: Session = Depends(get_db)):
+def check_in(event_id: int, body: CheckInRequest, request: Request, db: Session = Depends(get_db)):
     """Verify attendance via the host's QR code value. 200 / 400 / 401 / 403 / 404 / 409."""
-    raise NotImplementedError
+    user_id = require_user(request)
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+
+    if not event.check_in_code or body.code != event.check_in_code:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid check-in code")
+
+    # Generous window so demos work: from 24h before start to 24h after.
+    now = datetime.now(timezone.utc)
+    if abs((event.event_date - now).total_seconds()) > 24 * 3600:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Check-in is only open around the event time")
+
+    rsvp = db.execute(
+        select(Rsvp).where(Rsvp.user_id == user_id, Rsvp.event_id == event_id)
+    ).scalar_one_or_none()
+    if rsvp is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No RSVP for this event")
+    if rsvp.did_attend:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Already checked in")
+
+    rsvp.did_attend = True
+    rsvp.checked_in_at = now
+    standings.record_attendance(db, user_id, event.latitude, event.longitude)
+    db.commit()
+    db.refresh(rsvp)
+    return _serialize_rsvp(rsvp)
