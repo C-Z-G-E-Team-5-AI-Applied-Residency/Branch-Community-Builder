@@ -11,7 +11,8 @@ Each function should:
   2. Upsert the (user, neighborhood) standing row and increment the counter
   3. Recompute is_leader (threshold TBD as a team — e.g. hosted >= 3 or attended >= 10)
 """
-from sqlalchemy import func, select
+from geoalchemy2 import Geometry
+from sqlalchemy import cast, func, select
 from sqlalchemy.orm import Session
 
 from app.models.community_standing import CommunityStanding
@@ -24,10 +25,11 @@ LEADER_ATTENDED_THRESHOLD = 10
 
 def _resolve_neighborhood_id(db: Session, latitude: float, longitude: float) -> int | None:
     point = func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326)
+    # boundary is GEOGRAPHY; ST_Contains only exists for geometry, so cast.
     return db.execute(
-        select(Neighborhood.neighborhood_id).where(
-            func.ST_Contains(Neighborhood.boundary, point)
-        )
+        select(Neighborhood.neighborhood_id)
+        .where(func.ST_Contains(cast(Neighborhood.boundary, Geometry), point))
+        .limit(1)
     ).scalar_one_or_none()
 
 
