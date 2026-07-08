@@ -1,3 +1,4 @@
+import secrets
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
@@ -5,7 +6,7 @@ from sqlalchemy import cast, func, select
 from sqlalchemy.orm import Session
 from geoalchemy2 import Geography
 
-from app.core.security import require_user
+from app.core.security import current_user_id, require_user
 from app.database import get_db
 from app.models.event import Event
 from app.models.tag import EventTag, Tag
@@ -31,8 +32,8 @@ def _tags_by_event(db: Session, event_ids: list[int]) -> dict[int, list[dict]]:
     return tags_by_event
 
 
-def _serialize_event(event: Event, tags: list[dict]) -> dict:
-    return {
+def _serialize_event(event: Event, tags: list[dict], *, include_check_in_code: bool = False) -> dict:
+    out = {
         "event_id": event.event_id,
         "title": event.title,
         "event_date": event.event_date,
@@ -47,6 +48,9 @@ def _serialize_event(event: Event, tags: list[dict]) -> dict:
         "longitude": event.longitude,
         "tags": tags,
     }
+    if include_check_in_code:
+        out["check_in_code"] = event.check_in_code
+    return out
 
 
 @router.get("")
@@ -81,13 +85,14 @@ def list_events(
 
 
 @router.get("/{event_id}")
-def get_event(event_id: int, db: Session = Depends(get_db)):
-    """Single event with tags. 200 / 404."""
+def get_event(event_id: int, request: Request, db: Session = Depends(get_db)):
+    """Single event with tags. 200 / 404. check_in_code is host-only."""
     event = db.get(Event, event_id)
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
     tags_by_event = _tags_by_event(db, [event_id])
-    return _serialize_event(event, tags_by_event.get(event_id, []))
+    is_host = current_user_id(request) == event.host_id
+    return _serialize_event(event, tags_by_event.get(event_id, []), include_check_in_code=is_host)
 
 
 @router.post("", status_code=201)
@@ -107,22 +112,22 @@ def create_event(body: EventCreate, request: Request, db: Session = Depends(get_
         event_image_url=body.event_image_url,
         latitude=body.latitude,
         longitude=body.longitude,
+        check_in_code=secrets.token_urlsafe(12),
     )
     db.add(event)
     db.flush()
 
     db.add_all(EventTag(event_id=event.event_id, tag_id=tag_id) for tag_id in body.tag_ids)
 
-    # Neighborhood coverage is best-effort: record_hosted no-ops when no
-    # neighborhood polygon contains this point (see plan notes). Not yet
-    # implemented (Zane's function) -- will raise NotImplementedError today.
+    # Best-effort: record_hosted no-ops when no neighborhood polygon
+    # contains this point.
     standings.record_hosted(db, host_id, body.latitude, body.longitude)
 
     db.commit()
     db.refresh(event)
 
     tags_by_event = _tags_by_event(db, [event.event_id])
-    return _serialize_event(event, tags_by_event.get(event.event_id, []))
+    return _serialize_event(event, tags_by_event.get(event.event_id, []), include_check_in_code=True)
 
 
 @router.patch("/{event_id}")

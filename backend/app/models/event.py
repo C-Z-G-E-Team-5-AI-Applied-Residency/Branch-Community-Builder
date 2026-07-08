@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from geoalchemy2 import Geography
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, func
+from sqlalchemy import Computed, DateTime, Float, ForeignKey, Integer, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -23,6 +23,11 @@ class Event(Base):
     event_image_url: Mapped[str] = mapped_column(String, nullable=False)
     longitude: Mapped[float] = mapped_column(Float, nullable=False)
     latitude: Mapped[float] = mapped_column(Float, nullable=False)
-    # geo is a generated column in the DB; read-only from the ORM's perspective.
-    geo = mapped_column(Geography(geometry_type="POINT", srid=4326), nullable=True)
+    # geo is a generated column in the DB; Computed(...) keeps the ORM from
+    # ever writing it (Postgres rejects explicit values for GENERATED columns).
+    geo = mapped_column(
+        Geography(geometry_type="POINT", srid=4326),
+        Computed("ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography", persisted=True),
+        nullable=True,
+    )
     check_in_code: Mapped[str | None] = mapped_column(String, nullable=True)
