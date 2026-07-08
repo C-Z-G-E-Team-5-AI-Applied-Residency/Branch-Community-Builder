@@ -1,49 +1,162 @@
-from fastapi import APIRouter, Depends, Request
-from sqlalchemy.orm import Session
+from datetime import datetime
 
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import cast, func, select
+from sqlalchemy.orm import Session
+from geoalchemy2 import Geography
+
+from app.core.security import require_user
 from app.database import get_db
+from app.models.event import Event
+from app.models.tag import EventTag, Tag
 from app.schemas.event import EventCreate, EventUpdate
+from app.services import standings
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
 
+def _tags_by_event(db: Session, event_ids: list[int]) -> dict[int, list[dict]]:
+    """One query: {event_id: [{tag_id, name}, ...]} for a batch of events."""
+    if not event_ids:
+        return {}
+    rows = db.execute(
+        select(EventTag.event_id, Tag.tag_id, Tag.name)
+        .join(Tag, Tag.tag_id == EventTag.tag_id)
+        .where(EventTag.event_id.in_(event_ids))
+    ).all()
+    tags_by_event: dict[int, list[dict]] = {}
+    for event_id, tag_id, name in rows:
+        tags_by_event.setdefault(event_id, []).append({"tag_id": tag_id, "name": name})
+    return tags_by_event
+
+
+def _serialize_event(event: Event, tags: list[dict]) -> dict:
+    return {
+        "event_id": event.event_id,
+        "title": event.title,
+        "event_date": event.event_date,
+        "location": event.location,
+        "event_zip_code": event.event_zip_code,
+        "event_description": event.event_description,
+        "event_capacity": event.event_capacity,
+        "status": event.status,
+        "host_id": event.host_id,
+        "event_image_url": event.event_image_url,
+        "latitude": event.latitude,
+        "longitude": event.longitude,
+        "tags": tags,
+    }
+
+
 @router.get("")
 def list_events(
-    zip_code: str | None = None,
+    zip_code: int | None = None,
     lat: float | None = None,
     lng: float | None = None,
     radius: float = 10,
     status: str | None = None,
-    after: str | None = None,
+    after: datetime | None = None,
     tag_id: int | None = None,
     db: Session = Depends(get_db),
 ):
     """List events with optional filters. Uses ST_DWithin on geo for lat/lng/radius. 200."""
-    raise NotImplementedError
+    stmt = select(Event)
+
+    if zip_code is not None:
+        stmt = stmt.where(Event.event_zip_code == zip_code)
+    if status is not None:
+        stmt = stmt.where(Event.status == status)
+    if after is not None:
+        stmt = stmt.where(Event.event_date >= after)
+    if tag_id is not None:
+        stmt = stmt.join(EventTag, EventTag.event_id == Event.event_id).where(EventTag.tag_id == tag_id)
+    if lat is not None and lng is not None:
+        point = cast(func.ST_MakePoint(lng, lat), Geography)
+        stmt = stmt.where(func.ST_DWithin(Event.geo, point, radius * 1609.34))
+
+    events = db.execute(stmt).scalars().all()
+    tags_by_event = _tags_by_event(db, [e.event_id for e in events])
+    return [_serialize_event(e, tags_by_event.get(e.event_id, [])) for e in events]
 
 
 @router.get("/{event_id}")
 def get_event(event_id: int, db: Session = Depends(get_db)):
     """Single event with tags. 200 / 404."""
-    raise NotImplementedError
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    tags_by_event = _tags_by_event(db, [event_id])
+    return _serialize_event(event, tags_by_event.get(event_id, []))
 
 
 @router.post("", status_code=201)
 def create_event(body: EventCreate, request: Request, db: Session = Depends(get_db)):
     """Create an event hosted by the authenticated user. 201 / 400 / 401."""
-    raise NotImplementedError
+    host_id = require_user(request)
+
+    event = Event(
+        title=body.title,
+        event_date=body.event_date,
+        location=body.location,
+        event_zip_code=body.event_zip_code,
+        event_description=body.event_description,
+        event_capacity=body.event_capacity,
+        status=body.status,
+        host_id=host_id,
+        event_image_url=body.event_image_url,
+        latitude=body.latitude,
+        longitude=body.longitude,
+    )
+    db.add(event)
+    db.flush()
+
+    db.add_all(EventTag(event_id=event.event_id, tag_id=tag_id) for tag_id in body.tag_ids)
+
+    # Neighborhood coverage is best-effort: record_hosted no-ops when no
+    # neighborhood polygon contains this point (see plan notes). Not yet
+    # implemented (Zane's function) -- will raise NotImplementedError today.
+    standings.record_hosted(db, host_id, body.latitude, body.longitude)
+
+    db.commit()
+    db.refresh(event)
+
+    tags_by_event = _tags_by_event(db, [event.event_id])
+    return _serialize_event(event, tags_by_event.get(event.event_id, []))
 
 
 @router.patch("/{event_id}")
 def update_event(event_id: int, body: EventUpdate, request: Request, db: Session = Depends(get_db)):
     """Update an event (host only). 200 / 401 / 403 / 404."""
-    raise NotImplementedError
+    current_user_id = require_user(request)
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    if event.host_id != current_user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
+
+    for field, value in body.model_dump(exclude_unset=True).items():
+        setattr(event, field, value)
+
+    db.commit()
+    db.refresh(event)
+
+    tags_by_event = _tags_by_event(db, [event.event_id])
+    return _serialize_event(event, tags_by_event.get(event.event_id, []))
 
 
 @router.delete("/{event_id}")
 def delete_event(event_id: int, request: Request, db: Session = Depends(get_db)):
     """Delete an event (host only), cascading to rsvps/event_tags/recommendations. 200 / 401 / 403 / 404."""
-    raise NotImplementedError
+    current_user_id = require_user(request)
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    if event.host_id != current_user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
+
+    db.delete(event)
+    db.commit()
+    return {"message": "event deleted"}
 
 
 # --- event tags ---------------------------------------------------------------
