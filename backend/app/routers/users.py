@@ -1,16 +1,18 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.security import require_user
 from app.database import get_db
 from app.models.event import Event
+from app.models.recommendation import Recommendation
 from app.models.rsvp import Rsvp
-from app.models.tag import Tag, UserInterest
+from app.models.tag import EventTag, Tag, UserInterest
 from app.models.user import User
 from app.schemas.tag import InterestCreate
 from app.schemas.user import UserOut
+from app.services.recommendations import generate_recommendations
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -117,13 +119,96 @@ def get_user_standings(user_id: int, db: Session = Depends(get_db)):
     raise NotImplementedError
 
 
+def _serialize_recommendations(db: Session, user_id: int) -> list[dict]:
+    rows = db.execute(
+        select(Recommendation, Event)
+        .join(Event, Event.event_id == Recommendation.event_id)
+        .where(Recommendation.user_id == user_id)
+        .order_by(Recommendation.recommendation_id)
+    ).all()
+    return [
+        {
+            "recommendation_id": rec.recommendation_id,
+            "user_id": rec.user_id,
+            "event_id": rec.event_id,
+            "reason": rec.reason,
+            "created_at": rec.created_at,
+            "event": {
+                "event_id": event.event_id,
+                "title": event.title,
+                "event_date": event.event_date,
+                "location": event.location,
+                "status": event.status,
+                "event_image_url": event.event_image_url,
+                "latitude": event.latitude,
+                "longitude": event.longitude,
+            },
+        }
+        for rec, event in rows
+    ]
+
+
 @router.get("/{user_id}/recommendations")
-def get_user_recommendations(user_id: int, db: Session = Depends(get_db)):
+def get_user_recommendations(user_id: int, request: Request, db: Session = Depends(get_db)):
     """Cached AI recommendations. 200 / 401 / 403."""
-    raise NotImplementedError
+    if require_user(request) != user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot view another user's recommendations")
+    return _serialize_recommendations(db, user_id)
 
 
 @router.post("/{user_id}/recommendations/refresh")
-def refresh_user_recommendations(user_id: int, db: Session = Depends(get_db)):
+def refresh_user_recommendations(user_id: int, request: Request, db: Session = Depends(get_db)):
     """Trigger a fresh Gemini recommendation pass and overwrite cache. 200 / 401 / 403."""
-    raise NotImplementedError
+    if require_user(request) != user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot refresh another user's recommendations")
+
+    interests = db.execute(
+        select(Tag.name)
+        .join(UserInterest, UserInterest.tag_id == Tag.tag_id)
+        .where(UserInterest.user_id == user_id)
+    ).scalars().all()
+
+    # Candidate pool: upcoming open events (not the user's own).
+    # TODO(review): no geographic filter yet — consider radius around the
+    # user's home zip once zip geocoding is available.
+    events = db.execute(
+        select(Event)
+        .where(Event.event_date >= func.now(), Event.status == "open", Event.host_id != user_id)
+        .order_by(Event.event_date)
+        .limit(50)
+    ).scalars().all()
+
+    tag_rows = db.execute(
+        select(EventTag.event_id, Tag.name)
+        .join(Tag, Tag.tag_id == EventTag.tag_id)
+        .where(EventTag.event_id.in_([e.event_id for e in events]))
+    ).all() if events else []
+    tags_by_event: dict[int, list[str]] = {}
+    for event_id, name in tag_rows:
+        tags_by_event.setdefault(event_id, []).append(name)
+
+    candidates = [
+        {
+            "event_id": e.event_id,
+            "title": e.title,
+            "event_description": e.event_description,
+            "tags": tags_by_event.get(e.event_id, []),
+        }
+        for e in events
+    ]
+
+    results = generate_recommendations(list(interests), candidates)
+
+    # Overwrite cache: delete-then-insert, honoring UNIQUE(user_id, event_id).
+    valid_ids = {e.event_id for e in events}
+    db.execute(delete(Recommendation).where(Recommendation.user_id == user_id))
+    seen: set[int] = set()
+    for item in results:
+        event_id = item["eventId"]
+        if event_id not in valid_ids or event_id in seen:
+            continue  # drop hallucinated or duplicate event ids
+        seen.add(event_id)
+        db.add(Recommendation(user_id=user_id, event_id=event_id, reason=item["reason"]))
+    db.commit()
+
+    return _serialize_recommendations(db, user_id)
