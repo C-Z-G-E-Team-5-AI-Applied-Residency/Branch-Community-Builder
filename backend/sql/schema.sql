@@ -82,6 +82,15 @@ CREATE TABLE tags (
     name   TEXT UNIQUE NOT NULL
 );
 
+INSERT INTO tags (name) VALUES
+    ('basketball'),
+    ('volunteering'),
+    ('photography'),
+    ('coding'),
+    ('music'),
+    ('outdoors')
+ON CONFLICT (name) DO NOTHING;
+
 CREATE TABLE user_interests (
     tag_id  INTEGER NOT NULL REFERENCES tags(tag_id) ON DELETE CASCADE,
     user_id INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
