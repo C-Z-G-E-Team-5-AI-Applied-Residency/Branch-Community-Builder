@@ -7,7 +7,12 @@ from app.routers import auth, users, profiles, events, rsvps, neighborhoods, tag
 
 app = FastAPI(title="BRANCH API", version="0.1.0")
 
-app.add_middleware(SessionMiddleware, secret_key=settings.session_secret)
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=settings.session_secret,
+    same_site="none" if settings.session_cookie_secure else "lax",
+    https_only=settings.session_cookie_secure,
+)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[settings.frontend_origin],
