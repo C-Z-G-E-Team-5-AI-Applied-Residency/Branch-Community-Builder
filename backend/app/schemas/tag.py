@@ -9,5 +9,5 @@ class TagOut(BaseModel):
         from_attributes = True
 
 
-class InterestCreate(BaseModel):
+class TagAdd(BaseModel):
     tag_id: int
