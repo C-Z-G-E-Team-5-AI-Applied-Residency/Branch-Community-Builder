@@ -78,9 +78,13 @@ export default function Discover() {
     <main>
       <nav style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
         <strong>BRANCH</strong>
-        <Link to="/events/new">Host an event</Link>
         {me ? (
-          <Link to={`/profile/${me.user_id}`}>My profile ({me.username})</Link>
+          <>
+            <Link to={`/profile/${me.user_id}`}>Profile</Link>
+            <Link to={`/profile/${me.user_id}#my-events`}>My Events</Link>
+            <Link to={`/profile/${me.user_id}#my-rsvps`}>My RSVPs</Link>
+            <Link to="/events/new">+ Create Event</Link>
+          </>
         ) : (
           <Link to="/signin">Sign in</Link>
         )}
