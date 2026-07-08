@@ -13,6 +13,7 @@ Each function should:
 """
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.models.community_standing import CommunityStanding
 from app.models.neighborhood import Neighborhood
@@ -64,6 +65,31 @@ def record_hosted(db: Session, user_id: int, latitude: float, longitude: float) 
     recompute_leader(db, user_id, neighborhood_id)
     # No db.commit() here — caller's endpoint owns the transaction boundary.
 
+def record_hosted(db: Session, user_id: int, latitude: float, longitude: float) -> None:
+  point = func.ST_SetSRID(func.ST_MakePoint(longitude, latitude), 4326)
+  neighborhood = (
+      db.query(Neighborhood)
+      .filter(func.ST_Contains(func.cast(Neighborhood.boundary, Geometry), point))
+      .first()
+  )
+  if neighborhood is None:
+    return
+  standing = (
+    db.query(CommunityStanding)
+    .filter_by(user_id=user_id, neighborhood_id=neighborhood.neighborhood_id)
+    .first()
+  )
+  if standing is None:
+    standing = CommunityStanding(
+      user_id=user_id,
+      neighborhood_id=neighborhood.neighborhood_id,
+      events_hosted=1,
+      )
+    db.add(standing)
+  else:
+    standing.events_hosted += 1
+  db.flush()
+  recompute_leader(db, user_id, neighborhood.neighborhood_id)
 
 def record_attendance(db: Session, user_id: int, latitude: float, longitude: float) -> None:
     # TODO(Emily, BR-8/BR-9): check_in/update_rsvp need to pass the event's own
