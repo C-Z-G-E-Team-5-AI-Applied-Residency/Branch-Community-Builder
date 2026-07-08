@@ -13,9 +13,9 @@ L.Icon.Default.mergeOptions({
   shadowUrl: markerShadow,
 });
 
-export default function EventMap({ events = [], center = [40.7359, -74.0036] }) {
+export default function EventMap({ events = [], center = [40.7359, -74.0036], height = 400 }) {
   return (
-    <MapContainer center={center} zoom={12} style={{ height: 400, width: "100%" }}>
+    <MapContainer center={center} zoom={12} style={{ height, width: "100%" }}>
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
