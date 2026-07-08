@@ -11,3 +11,7 @@ class TagOut(BaseModel):
 
 class TagAdd(BaseModel):
     tag_id: int
+
+
+class InterestCreate(BaseModel):
+    tag_id: int
