@@ -23,6 +23,8 @@ from app.database import engine
 
 def load(shapefile_path: str) -> None:
     gdf = gpd.read_file(shapefile_path).to_crs(epsg=4326)
+    columns = {col.lower(): col for col in gdf.columns}
+    name_col, city_col = columns["name"], columns["city"]
     with engine.begin() as conn:
         for _, row in gdf.iterrows():
             conn.execute(
@@ -31,7 +33,7 @@ def load(shapefile_path: str) -> None:
                     "VALUES (:name, :city, ST_Multi(ST_CollectionExtract("
                     "ST_MakeValid(ST_GeomFromText(:wkt, 4326)), 3)))"
                 ),
-                {"name": row["NAME"], "city": row["CITY"], "wkt": row.geometry.wkt},
+                {"name": row[name_col], "city": row[city_col], "wkt": row.geometry.wkt},
             )
 
 
