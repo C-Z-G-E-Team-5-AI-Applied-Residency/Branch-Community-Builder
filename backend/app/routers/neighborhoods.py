@@ -3,7 +3,9 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 from geoalchemy2 import Geometry
 from app.database import get_db
+from app.models.community_standing import CommunityStanding
 from app.models.neighborhood import Neighborhood
+from app.models.user import User
 from app.schemas.neighborhood import NeighborhoodOut
 
 router = APIRouter(prefix="/api/neighborhoods", tags=["neighborhoods"])
@@ -40,4 +42,29 @@ def get_neighborhood_standings(
     neighborhood_id: int, is_leader: bool | None = None, db: Session = Depends(get_db)
 ):
     """Leaderboard ordered by events_hosted, events_attended. 200 / 404."""
-    raise NotImplementedError
+    if db.get(Neighborhood, neighborhood_id) is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Neighborhood not found")
+
+    stmt = (
+        select(CommunityStanding, User.username)
+        .join(User, User.user_id == CommunityStanding.user_id)
+        .where(CommunityStanding.neighborhood_id == neighborhood_id)
+        .order_by(CommunityStanding.events_hosted.desc(), CommunityStanding.events_attended.desc())
+    )
+    if is_leader is not None:
+        stmt = stmt.where(CommunityStanding.is_leader == is_leader)
+
+    rows = db.execute(stmt).all()
+    return [
+        {
+            "standing_id": s.standing_id,
+            "user_id": s.user_id,
+            "username": username,
+            "neighborhood_id": s.neighborhood_id,
+            "events_hosted": s.events_hosted,
+            "events_attended": s.events_attended,
+            "is_leader": s.is_leader,
+            "updated_at": s.updated_at,
+        }
+        for s, username in rows
+    ]

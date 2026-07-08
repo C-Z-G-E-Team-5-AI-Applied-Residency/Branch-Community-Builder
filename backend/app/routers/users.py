@@ -5,7 +5,9 @@ from sqlalchemy.orm import Session
 
 from app.core.security import require_user
 from app.database import get_db
+from app.models.community_standing import CommunityStanding
 from app.models.event import Event
+from app.models.neighborhood import Neighborhood
 from app.models.recommendation import Recommendation
 from app.models.rsvp import Rsvp
 from app.models.tag import EventTag, Tag, UserInterest
@@ -116,7 +118,26 @@ def remove_user_interest(
 @router.get("/{user_id}/standings")
 def get_user_standings(user_id: int, db: Session = Depends(get_db)):
     """Community standing across all neighborhoods. 200."""
-    raise NotImplementedError
+    rows = db.execute(
+        select(CommunityStanding, Neighborhood.name, Neighborhood.city)
+        .join(Neighborhood, Neighborhood.neighborhood_id == CommunityStanding.neighborhood_id)
+        .where(CommunityStanding.user_id == user_id)
+        .order_by(CommunityStanding.events_hosted.desc(), CommunityStanding.events_attended.desc())
+    ).all()
+    return [
+        {
+            "standing_id": s.standing_id,
+            "user_id": s.user_id,
+            "neighborhood_id": s.neighborhood_id,
+            "neighborhood_name": name,
+            "city": city,
+            "events_hosted": s.events_hosted,
+            "events_attended": s.events_attended,
+            "is_leader": s.is_leader,
+            "updated_at": s.updated_at,
+        }
+        for s, name, city in rows
+    ]
 
 
 def _serialize_recommendations(db: Session, user_id: int) -> list[dict]:
