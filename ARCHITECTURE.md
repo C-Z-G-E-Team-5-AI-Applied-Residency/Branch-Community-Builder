@@ -3,7 +3,7 @@
 A community app: users discover local events on a map, RSVP, and check in via QR code to prove
 they actually showed up. There's also an AI "event matchmaker" using Gemini.
 
-**Status note:** as of this writing, this is a fully-designed *skeleton*, not a working app yet.
+**Status note:** as of this writing, this is a fully-designed _skeleton_, not a working app yet.
 The database schema, ORM models, request/response contracts, and route signatures are all written
 out — but almost every route handler body is `raise NotImplementedError`, and the frontend pages
 have `{/* TODO */}` where API calls should go. Treat what follows as "the intended design."
@@ -15,7 +15,7 @@ with decorators (`@app.get("/path")`) and it auto-generates interactive API docs
 type annotations. `main.py` wires up two middlewares (session cookies + CORS) and mounts 7 routers.
 
 **Pydantic** (`backend/app/schemas/`) is FastAPI's validation layer — think TypeScript interfaces
-that are actually *enforced at runtime*. Every endpoint declares a `*Create`/`*Update` schema for
+that are actually _enforced at runtime_. Every endpoint declares a `*Create`/`*Update` schema for
 what it accepts and a `*Out` schema for what it returns; FastAPI validates incoming JSON against
 these automatically and rejects bad requests with a 422 before your code even runs.
 
@@ -56,13 +56,29 @@ free Nominatim (OpenStreetMap) API, server-side, when a user creates an event.
 - `events` — title/date/location/host/capacity/status, lat+lng, the generated `geo` point, and a
   `check_in_code` for QR verification
 - `rsvps` — join of user↔event, unique per pair, tracks `status` and `did_attend`/`checked_in_at`
-- `neighborhoods` — polygon boundaries (loaded from Zillow's public shapefiles via
-  `backend/scripts/load_neighborhoods.py`, not run automatically)
+- `neighborhoods` — polygon boundaries (Zillow's public shapefiles, loaded once via
+  `backend/scripts/load_neighborhoods.py`; see Setup below for the pre-built seed dump — you
+  shouldn't need to run that script yourself)
 - `community_standing` — per (user, neighborhood) counts of events hosted/attended, plus an
   `is_leader` flag
 - `tags`, `user_interests`, `event_tags` — a global tag catalog with many-to-many joins to both
   users and events
 - `recommendations` — cached Gemini output
+
+## Neighborhood data setup
+
+The `neighborhoods` table (polygon boundaries, used for community standing / leaderboards) isn't
+seeded by `schema.sql`. After your database is up and the schema is applied, load it once with:
+
+```bash
+docker exec -i branch-community-builder-db-1 pg_restore -U branch -d branch \
+  < backend/sql/neighborhoods_seed.dump
+```
+
+This only needs to run once per database — running it twice will fail on a primary-key conflict
+rather than duplicating rows. You do **not** need to install `geopandas` or download any Zillow
+shapefiles yourself; `backend/scripts/load_neighborhoods.py` is only for regenerating this seed file
+if the source data ever needs to change.
 
 ## Frontend (React + Vite)
 
