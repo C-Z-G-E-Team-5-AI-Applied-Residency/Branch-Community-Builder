@@ -8,15 +8,20 @@ from app.database import get_db
 from app.models.event import Event
 from app.models.rsvp import Rsvp
 from app.models.tag import Tag, UserInterest
+from app.models.user import User
 from app.schemas.tag import InterestCreate
+from app.schemas.user import UserOut
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
 
-@router.get("/{user_id}")
+@router.get("/{user_id}", response_model=UserOut)
 def get_user(user_id: int, db: Session = Depends(get_db)):
     """Public user info. 200 / 404."""
-    raise NotImplementedError
+    user = db.get(User, user_id)
+    if user is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    return user
 
 
 @router.get("/{user_id}/rsvps")
