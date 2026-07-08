@@ -186,6 +186,10 @@ def add_event_tag(event_id: int, body: TagAdd, request: Request, db: Session = D
     if event.host_id != current_user_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
 
+    tag = db.get(Tag, body.tag_id)
+    if tag is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Tag not found")
+
     existing = db.execute(
         select(EventTag).where(EventTag.event_id == event_id, EventTag.tag_id == body.tag_id)
     ).scalar_one_or_none()
@@ -194,8 +198,6 @@ def add_event_tag(event_id: int, body: TagAdd, request: Request, db: Session = D
 
     db.add(EventTag(event_id=event_id, tag_id=body.tag_id))
     db.commit()
-
-    tag = db.get(Tag, body.tag_id)
     return {"tag_id": tag.tag_id, "name": tag.name}
 
 
