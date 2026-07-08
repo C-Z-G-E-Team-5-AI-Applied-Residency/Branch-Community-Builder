@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
-
+from sqlalchemy import select, func
+from geoalchemy2 import Geometry
 from app.database import get_db
+from app.models.neighborhood import Neighborhood
 
 router = APIRouter(prefix="/api/neighborhoods", tags=["neighborhoods"])
-
 
 @router.get("")
 def list_neighborhoods(
@@ -14,13 +15,23 @@ def list_neighborhoods(
     db: Session = Depends(get_db),
 ):
     """All neighborhoods; ?lat&lng does a point-in-boundary lookup via ST_Contains. 200."""
-    raise NotImplementedError
+    query = select(Neighborhood)
+    if city is not None:
+        query = query.where(Neighborhood.city == city)
+    if lat is not None and lng is not None:
+        point = func.ST_SetSRID(func.ST_MakePoint(lng, lat), 4326)
+        query = query.where(func.ST_Contains(func.cast(Neighborhood.boundary, Geometry), point))
+    neighborhoods = db.execute(query).scalars().all()
+    return neighborhoods
 
 
 @router.get("/{neighborhood_id}")
 def get_neighborhood(neighborhood_id: int, db: Session = Depends(get_db)):
     """Single neighborhood. 200 / 404."""
-    raise NotImplementedError
+    neighborhood = db.get(Neighborhood, neighborhood_id)
+    if neighborhood is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Neighborhood not found")
+    return neighborhood
 
 
 @router.get("/{neighborhood_id}/standings")
