@@ -5,6 +5,8 @@ from sqlalchemy.orm import Session
 
 from app.core.security import require_user
 from app.database import get_db
+from app.models.event import Event
+from app.models.rsvp import Rsvp
 from app.models.tag import Tag, UserInterest
 from app.schemas.tag import InterestCreate
 
@@ -20,7 +22,32 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
 @router.get("/{user_id}/rsvps")
 def get_user_rsvps(user_id: int, db: Session = Depends(get_db)):
     """All RSVPs (and therefore events) for a user. 200."""
-    raise NotImplementedError
+    rows = db.execute(
+        select(Rsvp, Event)
+        .join(Event, Event.event_id == Rsvp.event_id)
+        .where(Rsvp.user_id == user_id)
+        .order_by(Event.event_date)
+    ).all()
+    return [
+        {
+            "rsvp_id": rsvp.rsvp_id,
+            "user_id": rsvp.user_id,
+            "event_id": rsvp.event_id,
+            "status": rsvp.status,
+            "did_attend": rsvp.did_attend,
+            "created_at": rsvp.created_at,
+            "checked_in_at": rsvp.checked_in_at,
+            "event": {
+                "event_id": event.event_id,
+                "title": event.title,
+                "event_date": event.event_date,
+                "location": event.location,
+                "status": event.status,
+                "event_image_url": event.event_image_url,
+            },
+        }
+        for rsvp, event in rows
+    ]
 
 
 @router.get("/{user_id}/interests")

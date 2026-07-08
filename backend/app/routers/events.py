@@ -1,15 +1,18 @@
 import secrets
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import cast, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from geoalchemy2 import Geography
 
 from app.core.security import current_user_id, require_user
 from app.database import get_db
 from app.models.event import Event
+from app.models.rsvp import Rsvp
 from app.models.tag import EventTag, Tag
+from app.models.user import User
 from app.schemas.event import EventCreate, EventUpdate
 from app.schemas.tag import TagAdd
 from app.services import standings
@@ -223,21 +226,70 @@ def remove_event_tag(event_id: int, tag_id: int, request: Request, db: Session =
 
 
 # --- rsvps nested under events ------------------------------------------------
+def _serialize_rsvp(rsvp: Rsvp, username: str | None = None) -> dict:
+    out = {
+        "rsvp_id": rsvp.rsvp_id,
+        "user_id": rsvp.user_id,
+        "event_id": rsvp.event_id,
+        "status": rsvp.status,
+        "did_attend": rsvp.did_attend,
+        "created_at": rsvp.created_at,
+        "checked_in_at": rsvp.checked_in_at,
+    }
+    if username is not None:
+        out["username"] = username
+    return out
+
+
 @router.get("/{event_id}/rsvps")
 def list_event_rsvps(
     event_id: int,
-    status: str | None = None,
+    status_filter: str | None = Query(default=None, alias="status"),
     did_attend: bool | None = None,
     db: Session = Depends(get_db),
 ):
     """All RSVPs for an event (host view). 200 / 404."""
-    raise NotImplementedError
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+
+    stmt = (
+        select(Rsvp, User.username)
+        .join(User, User.user_id == Rsvp.user_id)
+        .where(Rsvp.event_id == event_id)
+    )
+    if status_filter is not None:
+        stmt = stmt.where(Rsvp.status == status_filter)
+    if did_attend is not None:
+        stmt = stmt.where(Rsvp.did_attend == did_attend)
+
+    rows = db.execute(stmt).all()
+    return [_serialize_rsvp(rsvp, username) for rsvp, username in rows]
 
 
 @router.post("/{event_id}/rsvps", status_code=201)
 def create_rsvp(event_id: int, request: Request, db: Session = Depends(get_db)):
     """RSVP the authenticated user to an event. 201 / 401 / 404 / 409."""
-    raise NotImplementedError
+    user_id = require_user(request)
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+
+    existing = db.execute(
+        select(Rsvp).where(Rsvp.user_id == user_id, Rsvp.event_id == event_id)
+    ).scalar_one_or_none()
+    if existing is not None:
+        raise HTTPException(status.HTTP_409_CONFLICT, "Already RSVP'd to this event")
+
+    rsvp = Rsvp(user_id=user_id, event_id=event_id, status="going")
+    db.add(rsvp)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status.HTTP_409_CONFLICT, "Already RSVP'd to this event")
+    db.refresh(rsvp)
+    return _serialize_rsvp(rsvp)
 
 
 @router.post("/{event_id}/check-in")
