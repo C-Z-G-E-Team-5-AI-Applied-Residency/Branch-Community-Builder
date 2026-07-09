@@ -7,10 +7,14 @@ from app.routers import auth, users, profiles, events, rsvps, neighborhoods, tag
 
 app = FastAPI(title="BRANCH API", version="0.1.0")
 
+# The frontend reaches the API same-origin (Render rewrite proxies /api/* in
+# prod; same localhost site in dev), so Lax is safe everywhere. SameSite=None
+# would make it a third-party cookie, which browsers block across
+# *.onrender.com subdomains.
 app.add_middleware(
     SessionMiddleware,
     secret_key=settings.session_secret,
-    same_site="none" if settings.session_cookie_secure else "lax",
+    same_site="lax",
     https_only=settings.session_cookie_secure,
 )
 app.add_middleware(

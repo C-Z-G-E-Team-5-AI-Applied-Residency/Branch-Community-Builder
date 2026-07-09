@@ -13,8 +13,10 @@ export default function SignIn() {
     e.preventDefault();
     setError(null);
     try {
-      await api.login(form);
-      navigate("/discover");
+      const u = await api.login(form);
+      // Accounts abandoned mid-onboarding have no profile yet — resume there.
+      if (u.has_profile) navigate("/discover");
+      else navigate("/signup", { state: { step: "profile" } });
     } catch (err) {
       setError(err.message);
     }

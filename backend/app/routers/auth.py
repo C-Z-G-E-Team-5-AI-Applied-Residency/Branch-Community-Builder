@@ -5,15 +5,23 @@ from sqlalchemy.orm import Session
 
 from app.core.security import hash_password, verify_password
 from app.database import get_db
+from app.models.profile import Profile
 from app.models.user import User
 from app.schemas.auth import LoginRequest, SignupRequest
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
 
 
+def _has_profile(db: Session, user_id: int) -> bool:
+    return (
+        db.execute(select(Profile.user_id).where(Profile.user_id == user_id)).scalar_one_or_none()
+        is not None
+    )
+
+
 @router.post("/signup", status_code=201)
-def signup(body: SignupRequest, db: Session = Depends(get_db)):
-    """Create a new user account. 201 / 400 validation / 409 conflict."""
+def signup(body: SignupRequest, request: Request, db: Session = Depends(get_db)):
+    """Create a new user account and start a session. 201 / 400 validation / 409 conflict."""
     existing = db.execute(
         select(User).where((User.email == body.email) | (User.username == body.username))
     ).scalar_one_or_none()
@@ -32,11 +40,13 @@ def signup(body: SignupRequest, db: Session = Depends(get_db)):
         db.rollback()
         raise HTTPException(status.HTTP_409_CONFLICT, "Email or username already taken")
 
+    request.session["user_id"] = user.user_id
     return {
         "user_id": user.user_id,
         "email": user.email,
         "username": user.username,
         "created_at": user.created_at,
+        "has_profile": False,
     }
 
 
@@ -52,6 +62,7 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
         "user_id": user.user_id,
         "email": user.email,
         "username": user.username,
+        "has_profile": _has_profile(db, user.user_id),
     }
 
 
