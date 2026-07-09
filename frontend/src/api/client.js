@@ -1,5 +1,9 @@
 // Thin fetch wrapper. Sends cookies so the session survives across requests.
-const BASE = import.meta.env.VITE_API_URL ?? "http://localhost:8000";
+// In production the API is same-origin (the static site rewrites /api/* to the
+// backend service), so BASE is empty and paths stay relative — this keeps the
+// session cookie first-party. Browsers block third-party cookies across
+// *.onrender.com subdomains, so never point VITE_API_URL at another domain.
+const BASE = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "http://localhost:8000" : "");
 
 async function request(path, { method = "GET", body } = {}) {
   const res = await fetch(`${BASE}${path}`, {
@@ -10,7 +14,9 @@ async function request(path, { method = "GET", body } = {}) {
   });
   if (!res.ok) {
     const msg = await res.json().catch(() => ({}));
-    throw new Error(msg.detail || msg.message || `Request failed: ${res.status}`);
+    const err = new Error(msg.detail || msg.message || `Request failed: ${res.status}`);
+    err.status = res.status;
+    throw err;
   }
   return res.status === 204 ? null : res.json();
 }
@@ -41,8 +47,9 @@ function rememberUser(user) {
 }
 
 export const api = {
-  // auth
-  signup: (data) => request("/api/auth/signup", { method: "POST", body: data }),
+  // auth — signup and login both start a session and remember the user
+  signup: (data) =>
+    request("/api/auth/signup", { method: "POST", body: data }).then(rememberUser),
   login: (data) =>
     request("/api/auth/login", { method: "POST", body: data }).then(rememberUser),
   logout: () =>

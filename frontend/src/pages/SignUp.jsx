@@ -1,17 +1,26 @@
 // Sign-up onboarding: account -> profile -> interest picker -> /discover.
+// Sign-in redirects profile-less accounts here with state {step: "profile"}
+// so abandoned onboarding resumes instead of leaving a user with no profile.
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { api } from "../api/client.js";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { api, currentUser } from "../api/client.js";
 
 export default function SignUp() {
   const navigate = useNavigate();
-  const [step, setStep] = useState("account"); // account -> profile -> interests
+  const location = useLocation();
+  const me = location.state?.step === "profile" ? currentUser() : null;
+
+  const [step, setStep] = useState(me ? "profile" : "account"); // account -> profile -> interests
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const [account, setAccount] = useState({ email: "", username: "", password: "" });
-  const [profile, setProfile] = useState({ display_name: "", bio: "", home_zip_code: "" });
-  const [user, setUser] = useState(null);
+  const [profile, setProfile] = useState({
+    display_name: me?.username ?? "",
+    bio: "",
+    home_zip_code: "",
+  });
+  const [user, setUser] = useState(me);
 
   const [tags, setTags] = useState([]);
   const [picked, setPicked] = useState([]);
@@ -28,9 +37,7 @@ export default function SignUp() {
     setError(null);
     setBusy(true);
     try {
-      await api.signup(account);
-      // signup doesn't start a session — log in to get the cookie
-      const u = await api.login({ email: account.email, password: account.password });
+      const u = await api.signup(account); // starts the session too
       setUser(u);
       setProfile((p) => ({ ...p, display_name: account.username }));
       setStep("profile");
@@ -46,7 +53,22 @@ export default function SignUp() {
     setError(null);
     setBusy(true);
     try {
-      await api.createProfile(profile);
+      try {
+        await api.createProfile(profile);
+      } catch (err) {
+        if (err.status === 401 && account.password) {
+          // session cookie went missing mid-onboarding — re-login and retry
+          await api.login({ email: account.email, password: account.password });
+          await api.createProfile(profile);
+        } else if (err.status === 401) {
+          navigate("/signin");
+          return;
+        } else if (err.status === 409) {
+          // profile already exists (e.g. double submit) — nothing to create
+        } else {
+          throw err;
+        }
+      }
       setStep("interests");
     } catch (err) {
       setError(err.message);
@@ -72,7 +94,7 @@ export default function SignUp() {
 
   return (
     <main>
-      <h1>Create Account</h1>
+      <h1>{step === "account" ? "Create Account" : "Set Up Your Profile"}</h1>
       {error && <p role="alert" style={{ color: "crimson" }}>{error}</p>}
 
       {step === "account" && (
