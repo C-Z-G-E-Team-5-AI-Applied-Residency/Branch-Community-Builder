@@ -15,7 +15,16 @@ export default function SignIn() {
     try {
       const u = await api.login(form);
       // Accounts abandoned mid-onboarding have no profile yet — resume there.
-      if (u.has_profile) navigate("/discover");
+      // Backends built before has_profile existed omit the field; look the
+      // profile up instead of treating undefined as "no profile".
+      let hasProfile = u.has_profile;
+      if (hasProfile === undefined) {
+        hasProfile = await api
+          .getProfile(u.user_id)
+          .then(() => true)
+          .catch((err) => err.status !== 404);
+      }
+      if (hasProfile) navigate("/discover");
       else navigate("/signup", { state: { step: "profile" } });
     } catch (err) {
       setError(err.message);
