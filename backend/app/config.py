@@ -7,7 +7,6 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://branch:branch@localhost:5432/branch"
     session_secret: str = "change-me"
     gemini_api_key: str = ""
-    nominatim_user_agent: str = "branch-app/0.1"
     frontend_origin: str = "http://localhost:5173"
     # True in production: marks the session cookie Secure (https-only).
     session_cookie_secure: bool = False
