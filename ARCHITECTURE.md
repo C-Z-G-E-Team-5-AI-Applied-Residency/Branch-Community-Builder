@@ -3,10 +3,8 @@
 A community app: users discover local events on a map, RSVP, and check in via QR code to prove
 they actually showed up. There's also an AI "event matchmaker" using Gemini.
 
-**Status note:** as of this writing, this is a fully-designed _skeleton_, not a working app yet.
-The database schema, ORM models, request/response contracts, and route signatures are all written
-out — but almost every route handler body is `raise NotImplementedError`, and the frontend pages
-have `{/* TODO */}` where API calls should go. Treat what follows as "the intended design."
+**Status note:** the MVP is implemented end-to-end — every route handler and frontend page below
+is working code, not a skeleton.
 
 ## Backend: FastAPI + SQLAlchemy + PostGIS
 
@@ -15,8 +13,8 @@ with decorators (`@app.get("/path")`) and it auto-generates interactive API docs
 type annotations. `main.py` wires up two middlewares (session cookies + CORS) and mounts 7 routers.
 
 **Pydantic** (`backend/app/schemas/`) is FastAPI's validation layer — think TypeScript interfaces
-that are actually _enforced at runtime_. Every endpoint declares a `*Create`/`*Update` schema for
-what it accepts and a `*Out` schema for what it returns; FastAPI validates incoming JSON against
+that are actually _enforced at runtime_. Endpoints declare `*Create`/`*Update` schemas for what
+they accept (and `*Out` schemas for some responses); FastAPI validates incoming JSON against
 these automatically and rejects bad requests with a 422 before your code even runs.
 
 **SQLAlchemy** (`backend/app/models/`) is the ORM — Python classes that map 1:1 to the tables in
@@ -36,19 +34,19 @@ You write plain `latitude`/`longitude` floats; Postgres automatically derives a 
 from them, indexed with a GIST index for fast "find things within N meters" queries (`ST_DWithin`).
 Same idea for `neighborhoods.boundary`, a polygon column used for "which neighborhood is this point
 inside" lookups (`ST_Contains`) — that's how the "community standing / leaderboard per
-neighborhood" feature is meant to work.
+neighborhood" feature works.
 
 **Auth** is cookie-based sessions, not JWT: `backend/app/core/security.py` hashes passwords with
-bcrypt, and on login the intended code sets `request.session["user_id"]`. Starlette's
+bcrypt, and on login/signup the backend sets `request.session["user_id"]`. Starlette's
 `SessionMiddleware` (in `main.py`) transparently signs that into a cookie. The frontend must send
 `credentials: "include"` on every fetch for this to work — and it does, in `api/client.js`.
 
-**AI integration** (`backend/app/services/recommendations.py`) calls Gemini (`gemini-2.0-flash`
+**AI integration** (`backend/app/services/recommendations.py`) calls Gemini (`gemini-2.5-flash`
 via the `google-genai` SDK), feeding it the user's interest tags + nearby events, and forces a
 structured JSON response (`[{eventId, reason}]`) that gets cached in a `recommendations` table.
 
-**Geocoding** (`backend/app/services/geocoding.py`) turns a free-text address into lat/lng via the
-free Nominatim (OpenStreetMap) API, server-side, when a user creates an event.
+**Geocoding** happens client-side: `frontend/src/pages/CreateEvent.jsx` turns the free-text
+address into lat/lng via the free Nominatim (OpenStreetMap) API before posting the event.
 
 ## Database schema (`backend/sql/schema.sql`)
 
@@ -95,9 +93,9 @@ round-trips.
 
 ## How it fits together (example flow)
 
-Create event → `CreateEvent.jsx` posts to `POST /api/events` → backend geocodes the address if
-needed, inserts into `events` (Postgres auto-derives the `geo` point) → `Discover.jsx` queries
-`GET /api/events?lat=&lng=&radius=`, which is meant to run a PostGIS `ST_DWithin` radius search →
+Create event → `CreateEvent.jsx` geocodes the address (Nominatim) and posts lat/lng to
+`POST /api/events` → backend inserts into `events` (Postgres auto-derives the `geo` point) →
+`Discover.jsx` queries `GET /api/events?lat=&lng=&radius=`, a PostGIS `ST_DWithin` radius search →
 results render on the Leaflet map and as cards. RSVP and QR check-in flow similarly into the
 `rsvps` table, bumping `community_standing` counters.
 

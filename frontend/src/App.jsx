@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import Header from "./components/Header.jsx";
 import Footer from "./components/Footer.jsx";
 import SignIn from "./pages/SignIn.jsx";
@@ -10,7 +10,6 @@ import Profile from "./pages/Profile.jsx";
 import HostCheckIn from "./pages/HostCheckIn.jsx";
 
 export default function App() {
-  const { pathname } = useLocation();
   return (
     <>
       <Header />
@@ -24,7 +23,7 @@ export default function App() {
         <Route path="/events/:eventId/host" element={<HostCheckIn />} />
         <Route path="/profile/:userId" element={<Profile />} />
       </Routes>
-      {pathname !== "/signin" && <Footer />}
+      <Footer />
     </>
   );
 }

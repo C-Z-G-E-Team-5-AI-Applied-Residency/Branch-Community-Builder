@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.orm import Session
 
@@ -35,9 +37,12 @@ def update_rsvp(rsvp_id: int, body: RsvpUpdate, request: Request, db: Session = 
     for field, value in changes.items():
         setattr(rsvp, field, value)
 
-    if newly_attended and event is not None:
-        # Attendance counts toward the attendee's standing in the event's neighborhood.
-        standings.record_attendance(db, rsvp.user_id, event.latitude, event.longitude)
+    if newly_attended:
+        # Host verification counts as a check-in, same as scanning the QR code.
+        rsvp.checked_in_at = datetime.now(timezone.utc)
+        if event is not None:
+            # Attendance counts toward the attendee's standing in the event's neighborhood.
+            standings.record_attendance(db, rsvp.user_id, event.latitude, event.longitude)
 
     db.commit()
     db.refresh(rsvp)

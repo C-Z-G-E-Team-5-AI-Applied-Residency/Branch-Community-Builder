@@ -1,6 +1,5 @@
 // Main page: interactive event map + list, AI recommendations at the top.
 import { useEffect, useState } from "react";
-import { Link } from "react-router-dom";
 import EventMap from "../components/EventMap.jsx";
 import EventCard from "../components/EventCard.jsx";
 import { api, currentUser } from "../api/client.js";
@@ -76,19 +75,6 @@ export default function Discover() {
 
   return (
     <main>
-      <nav style={{ display: "flex", gap: "1rem", marginBottom: "1rem" }}>
-        <strong>BRANCH</strong>
-        {me ? (
-          <>
-            <Link to={`/profile/${me.user_id}`}>Profile</Link>
-            <Link to={`/profile/${me.user_id}#my-events`}>My Events</Link>
-            <Link to={`/profile/${me.user_id}#my-rsvps`}>My RSVPs</Link>
-            <Link to="/events/new">+ Create Event</Link>
-          </>
-        ) : (
-          <Link to="/signin">Sign in</Link>
-        )}
-      </nav>
       <h1>Discover</h1>
 
       {me && (

@@ -137,11 +137,11 @@ def create_event(body: EventCreate, request: Request, db: Session = Depends(get_
 @router.patch("/{event_id}")
 def update_event(event_id: int, body: EventUpdate, request: Request, db: Session = Depends(get_db)):
     """Update an event (host only). 200 / 401 / 403 / 404."""
-    current_user_id = require_user(request)
+    user_id = require_user(request)
     event = db.get(Event, event_id)
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
-    if event.host_id != current_user_id:
+    if event.host_id != user_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
 
     for field, value in body.model_dump(exclude_unset=True).items():
@@ -157,11 +157,11 @@ def update_event(event_id: int, body: EventUpdate, request: Request, db: Session
 @router.delete("/{event_id}")
 def delete_event(event_id: int, request: Request, db: Session = Depends(get_db)):
     """Delete an event (host only), cascading to rsvps/event_tags/recommendations. 200 / 401 / 403 / 404."""
-    current_user_id = require_user(request)
+    user_id = require_user(request)
     event = db.get(Event, event_id)
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
-    if event.host_id != current_user_id:
+    if event.host_id != user_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
 
     db.delete(event)
@@ -183,11 +183,11 @@ def list_event_tags(event_id: int, db: Session = Depends(get_db)):
 @router.post("/{event_id}/tags", status_code=201)
 def add_event_tag(event_id: int, body: TagAdd, request: Request, db: Session = Depends(get_db)):
     """Attach a tag (host only). 201 / 401 / 403 / 404 / 409."""
-    current_user_id = require_user(request)
+    user_id = require_user(request)
     event = db.get(Event, event_id)
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
-    if event.host_id != current_user_id:
+    if event.host_id != user_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
 
     tag = db.get(Tag, body.tag_id)
@@ -208,11 +208,11 @@ def add_event_tag(event_id: int, body: TagAdd, request: Request, db: Session = D
 @router.delete("/{event_id}/tags/{tag_id}")
 def remove_event_tag(event_id: int, tag_id: int, request: Request, db: Session = Depends(get_db)):
     """Remove a tag (host only). 200 / 401 / 403 / 404."""
-    current_user_id = require_user(request)
+    user_id = require_user(request)
     event = db.get(Event, event_id)
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
-    if event.host_id != current_user_id:
+    if event.host_id != user_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
 
     event_tag = db.execute(
@@ -301,7 +301,7 @@ def check_in(event_id: int, body: CheckInRequest, request: Request, db: Session 
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
 
-    if not event.check_in_code or body.code != event.check_in_code:
+    if not event.check_in_code or not secrets.compare_digest(body.code, event.check_in_code):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid check-in code")
 
     # Generous window so demos work: from 24h before start to 24h after.
