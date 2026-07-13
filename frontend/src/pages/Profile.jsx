@@ -1,11 +1,14 @@
 // User profile: display name, bio, interests, community standing / leader badge.
 import { useCallback, useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
-import { api, currentUser } from "../api/client.js";
+import { Link, useNavigate, useParams } from "react-router-dom";
+import { api, apiUrl, currentUser } from "../api/client.js";
 import LeaderBadge from "../components/LeaderBadge.jsx";
+
+const DEFAULT_AVATAR = "/images/default_avatar.svg";
 
 export default function Profile() {
   const { userId } = useParams();
+  const navigate = useNavigate();
   const me = currentUser();
   const isOwn = me && me.user_id === Number(userId);
 
@@ -15,6 +18,9 @@ export default function Profile() {
   const [rsvps, setRsvps] = useState([]);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ display_name: "", bio: "", home_zip_code: "" });
+  const [pictureFile, setPictureFile] = useState(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleteChecked, setDeleteChecked] = useState(false);
   const [error, setError] = useState(null);
 
   const load = useCallback(() => {
@@ -44,23 +50,70 @@ export default function Profile() {
   async function onSave(e) {
     e.preventDefault();
     try {
+      if (pictureFile) await api.uploadProfilePicture(userId, pictureFile);
       await api.updateProfile(userId, form);
       setEditing(false);
+      setPictureFile(null);
       load();
     } catch (err) {
       setError(err.message);
     }
   }
 
+  async function onDeleteAccount() {
+    try {
+      await api.deleteAccount(userId);
+      navigate("/signin");
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  async function onRemovePicture() {
+    try {
+      await api.removeProfilePicture(userId);
+      load();
+    } catch (err) {
+      setError(err.message);
+    }
+  }
+
+  // uploaded avatars are served by the API; anything else (old rows, dead
+  // paths) falls back to the bundled default via onError
+  const hasUpload = profile.profile_picture.startsWith("/api/");
+  const avatarSrc = hasUpload ? apiUrl(profile.profile_picture) : profile.profile_picture;
+
   return (
     <main>
       <h1>
         {profile.display_name} <LeaderBadge userId={Number(userId)} />
       </h1>
-      <img src={profile.profile_picture} alt="" width={96} height={96} />
+      <img
+        src={avatarSrc}
+        alt=""
+        width={96}
+        height={96}
+        onError={(e) => {
+          e.currentTarget.onerror = null;
+          e.currentTarget.src = DEFAULT_AVATAR;
+        }}
+      />
 
       {editing ? (
         <form onSubmit={onSave}>
+          <label>
+            Profile picture
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp,image/gif"
+              onChange={(e) => setPictureFile(e.target.files[0] ?? null)}
+            />
+          </label>
+          {hasUpload && (
+            <button type="button" onClick={onRemovePicture}>
+              Remove photo
+            </button>
+          )}
           <label>
             Display name
             <input value={form.display_name} onChange={set("display_name")} required />
@@ -74,7 +127,13 @@ export default function Profile() {
             <input value={form.home_zip_code} onChange={set("home_zip_code")} pattern="\d{5}" required />
           </label>
           <button type="submit">Save</button>{" "}
-          <button type="button" onClick={() => setEditing(false)}>
+          <button
+            type="button"
+            onClick={() => {
+              setEditing(false);
+              setPictureFile(null);
+            }}
+          >
             Cancel
           </button>
         </form>
@@ -139,6 +198,48 @@ export default function Profile() {
         </ul>
       ) : (
         <p>No community activity yet.</p>
+      )}
+
+      {isOwn && (
+        <section className="danger-zone">
+          <h2>Danger zone</h2>
+          {confirmingDelete ? (
+            <>
+              <p>
+                This permanently deletes your account, profile, events, and RSVPs. It cannot
+                be undone.
+              </p>
+              <label className="danger-confirm">
+                <input
+                  type="checkbox"
+                  checked={deleteChecked}
+                  onChange={(e) => setDeleteChecked(e.target.checked)}
+                />{" "}
+                I understand — delete my account permanently
+              </label>
+              <button
+                className="btn-danger"
+                disabled={!deleteChecked}
+                onClick={onDeleteAccount}
+              >
+                Permanently delete account
+              </button>{" "}
+              <button
+                type="button"
+                onClick={() => {
+                  setConfirmingDelete(false);
+                  setDeleteChecked(false);
+                }}
+              >
+                Cancel
+              </button>
+            </>
+          ) : (
+            <button className="btn-danger" onClick={() => setConfirmingDelete(true)}>
+              Delete account
+            </button>
+          )}
+        </section>
       )}
     </main>
   );
