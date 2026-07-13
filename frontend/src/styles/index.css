@@ -94,6 +94,26 @@ button:disabled { opacity: 0.55; cursor: default; }
 }
 .btn-primary:hover, button[type="submit"]:hover { background: var(--green-dark); }
 
+.btn-danger, button.btn-danger {
+  background: #c0392b;
+  border-color: #96281b;
+  color: #fff;
+  font-weight: 600;
+  font-size: 1.05rem;
+  padding: 0.6rem 1.4rem;
+}
+.btn-danger:hover, button.btn-danger:hover { background: #96281b; }
+.btn-danger:disabled, button.btn-danger:disabled { background: #c0392b; }
+
+.danger-zone {
+  margin-top: 2.5rem;
+  border: 1.5px solid #c0392b;
+  border-radius: 8px;
+  padding: 1rem 1.25rem;
+}
+.danger-zone h2 { margin-top: 0; color: #96281b; }
+.danger-confirm { font-weight: 600; }
+
 /* ---------- forms ---------- */
 form label { display: block; margin-bottom: 0.9rem; font-size: 0.92rem; font-weight: 600; }
 input, textarea, select {

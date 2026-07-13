@@ -5,14 +5,28 @@
 // *.onrender.com subdomains, so never point VITE_API_URL at another domain.
 const BASE = import.meta.env.VITE_API_URL ?? (import.meta.env.DEV ? "http://localhost:8000" : "");
 
-async function request(path, { method = "GET", body } = {}) {
+// Backend-served assets (e.g. avatar bytes) need the API origin in dev.
+export function apiUrl(path) {
+  return `${BASE}${path}`;
+}
+
+async function request(path, { method = "GET", body, formData } = {}) {
   const res = await fetch(`${BASE}${path}`, {
     method,
+    // FormData sets its own multipart Content-Type; only JSON bodies get the header
     headers: body ? { "Content-Type": "application/json" } : undefined,
     credentials: "include",
-    body: body ? JSON.stringify(body) : undefined,
+    body: formData ?? (body ? JSON.stringify(body) : undefined),
   });
   if (!res.ok) {
+    // Session cookie expired/cleared but a user is still remembered locally:
+    // forget them and start over at sign-in. (Skipped on the auth pages so a
+    // mistyped password doesn't trigger a reload loop.)
+    const onAuthPage = ["/signin", "/signup"].includes(window.location.pathname);
+    if (res.status === 401 && currentUser() && !onAuthPage) {
+      localStorage.removeItem(USER_KEY);
+      window.location.assign("/signin");
+    }
     const msg = await res.json().catch(() => ({}));
     const err = new Error(msg.detail || msg.message || `Request failed: ${res.status}`);
     err.status = res.status;
@@ -73,10 +87,22 @@ export const api = {
     request(`/api/events/${eventId}/check-in`, { method: "POST", body: { code } }),
   // users / profiles
   getUser: (userId) => request(`/api/users/${userId}`),
+  deleteAccount: (userId) =>
+    request(`/api/users/${userId}`, { method: "DELETE" }).then((res) => {
+      localStorage.removeItem(USER_KEY);
+      return res;
+    }),
   getProfile: (userId) => request(`/api/profiles/${userId}`),
   createProfile: (data) => request("/api/profiles", { method: "POST", body: data }),
   updateProfile: (userId, data) =>
     request(`/api/profiles/${userId}`, { method: "PATCH", body: data }),
+  uploadProfilePicture: (userId, file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request(`/api/profiles/${userId}/picture`, { method: "PUT", formData });
+  },
+  removeProfilePicture: (userId) =>
+    request(`/api/profiles/${userId}/picture`, { method: "DELETE" }),
   // interests / tags
   listTags: () => request("/api/tags"),
   getUserInterests: (userId) => request(`/api/users/${userId}/interests`),

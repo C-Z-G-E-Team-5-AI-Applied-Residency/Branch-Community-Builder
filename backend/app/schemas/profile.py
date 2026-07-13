@@ -7,7 +7,7 @@ class ProfileCreate(BaseModel):
     display_name: str
     bio: str
     home_zip_code: str
-    profile_picture: str = "/images/default_avatar.png"
+    profile_picture: str = "/images/default_avatar.svg"
 
 
 class ProfileUpdate(BaseModel):

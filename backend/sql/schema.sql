@@ -16,7 +16,9 @@ CREATE TABLE users (
 CREATE TABLE profiles (
     profile_id      SERIAL PRIMARY KEY,
     display_name    TEXT NOT NULL,
-    profile_picture TEXT DEFAULT '/images/default_avatar.png',
+    profile_picture TEXT DEFAULT '/images/default_avatar.svg',
+    picture_data    BYTEA,           -- uploaded avatar bytes (served at /api/profiles/{id}/picture)
+    picture_mime    TEXT,
     bio             TEXT NOT NULL,
     user_id         INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
     home_zip_code   TEXT NOT NULL

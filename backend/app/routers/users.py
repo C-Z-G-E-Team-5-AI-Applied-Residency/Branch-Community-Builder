@@ -28,6 +28,22 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
     return user
 
 
+@router.delete("/{user_id}", status_code=204)
+def delete_user(user_id: int, request: Request, db: Session = Depends(get_db)):
+    """Permanently delete own account; FK cascades remove profile, events,
+    RSVPs, interests, standings, and recommendations. 204 / 401 / 403."""
+    if require_user(request) != user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Cannot delete another user's account")
+
+    # core delete so the DB-level ON DELETE CASCADEs do the cleanup (the ORM
+    # would instead null out children's FKs)
+    result = db.execute(delete(User).where(User.user_id == user_id))
+    if result.rowcount == 0:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "User not found")
+    db.commit()
+    request.session.clear()
+
+
 @router.get("/{user_id}/rsvps")
 def get_user_rsvps(user_id: int, db: Session = Depends(get_db)):
     """All RSVPs (and therefore events) for a user. 200."""
