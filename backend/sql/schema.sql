@@ -114,3 +114,12 @@ CREATE TABLE recommendations (
     created_at        TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE (user_id, event_id)  -- one cached recommendation per user/event
 );
+
+-----------------------------------------------------------------------------
+CREATE TABLE announcements (
+    announcement_id SERIAL PRIMARY KEY,
+    event_id        INTEGER NOT NULL REFERENCES events(event_id) ON DELETE CASCADE,
+    host_id         INTEGER NOT NULL REFERENCES users,
+    message         TEXT NOT NULL,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
