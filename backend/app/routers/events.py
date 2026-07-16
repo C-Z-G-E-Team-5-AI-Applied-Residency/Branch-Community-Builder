@@ -9,11 +9,12 @@ from geoalchemy2 import Geography
 
 from app.core.security import current_user_id, require_user
 from app.database import get_db
+from app.models.announcement import Announcement
 from app.models.event import Event
 from app.models.rsvp import Rsvp
 from app.models.tag import EventTag, Tag
 from app.models.user import User
-from app.schemas.event import EventCreate, EventUpdate
+from app.schemas.event import AnnouncementCreate, EventCreate, EventUpdate
 from app.schemas.rsvp import CheckInRequest
 from app.schemas.tag import TagAdd
 from app.services import standings
@@ -323,3 +324,72 @@ def check_in(event_id: int, body: CheckInRequest, request: Request, db: Session 
     db.commit()
     db.refresh(rsvp)
     return _serialize_rsvp(rsvp)
+
+
+# --- announcements ------------------------------------------------
+def _serialize_announcement(announcement: Announcement) -> dict:
+    return {
+        "announcement_id": announcement.announcement_id,
+        "event_id": announcement.event_id,
+        "host_id": announcement.host_id,
+        "message": announcement.message,
+        "created_at": announcement.created_at,
+    }
+
+@router.get("/{event_id}/announcements")
+def list_event_announcements(event_id: int, db: Session = Depends(get_db)):
+    """All announcements for an event, newest-first. 200 / 404."""
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+
+    announcements = db.execute(
+        select(Announcement)
+        .where(Announcement.event_id == event_id)
+        .order_by(Announcement.created_at.desc())
+    ).scalars().all()
+    return [_serialize_announcement(a) for a in announcements]
+
+
+@router.post("/{event_id}/announcements", status_code=201)
+def create_event_announcement(
+    event_id: int, body: AnnouncementCreate, request: Request, db: Session = Depends(get_db)
+):
+    """Post an announcement to an event (host only). 201 / 401 / 403 / 404."""
+    user_id = require_user(request)
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    if event.host_id != user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
+
+    announcement = Announcement(event_id=event_id, host_id=user_id, message=body.message)
+    db.add(announcement)
+    db.commit()
+    db.refresh(announcement)
+    return _serialize_announcement(announcement)
+
+
+@router.delete("/{event_id}/announcements/{announcement_id}")
+def delete_event_announcement(
+    event_id: int, announcement_id: int, request: Request, db: Session = Depends(get_db)
+):
+    """Delete an announcement (host only). 200 / 401 / 403 / 404."""
+    user_id = require_user(request)
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    if event.host_id != user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
+
+    announcement = db.execute(
+        select(Announcement).where(
+            Announcement.announcement_id == announcement_id, Announcement.event_id == event_id
+        )
+    ).scalar_one_or_none()
+    if announcement is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Announcement not found on this event")
+
+    db.delete(announcement)
+    db.commit()
+    return {"message": "announcement deleted"}
