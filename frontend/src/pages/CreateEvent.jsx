@@ -21,7 +21,6 @@ export default function CreateEvent() {
   const [form, setForm] = useState({
     title: "",
     event_date: "",
-    event_end_date: "",
     location: "",
     event_zip_code: "",
     event_description: "",
@@ -66,7 +65,6 @@ export default function CreateEvent() {
       const event = await api.createEvent({
         ...form,
         event_date: new Date(form.event_date).toISOString(),
-        event_end_date: new Date(form.event_end_date).toISOString(),
         event_zip_code: parseInt(form.event_zip_code, 10),
         event_capacity: parseInt(form.event_capacity, 10),
         latitude: point.lat,
@@ -90,12 +88,8 @@ export default function CreateEvent() {
           <input value={form.title} onChange={set("title")} required />
         </label>
         <label>
-          Start date &amp; time
+          Date &amp; time
           <input type="datetime-local" value={form.event_date} onChange={set("event_date")} required />
-        </label>
-        <label>
-          End date &amp; time
-          <input type="datetime-local" value={form.event_end_date} onChange={set("event_end_date")} required />
         </label>
         <label>
           Address

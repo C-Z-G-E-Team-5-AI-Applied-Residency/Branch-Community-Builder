@@ -29,7 +29,6 @@ CREATE TABLE events (
     event_id        SERIAL PRIMARY KEY,
     title           TEXT NOT NULL,
     event_date      TIMESTAMPTZ NOT NULL,
-    event_end_date  TIMESTAMPTZ,
     location        TEXT NOT NULL,
     event_zip_code  INTEGER NOT NULL,
     event_description TEXT NOT NULL,

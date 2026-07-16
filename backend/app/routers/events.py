@@ -1,5 +1,5 @@
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import cast, func, select
@@ -19,9 +19,6 @@ from app.schemas.tag import TagAdd
 from app.services import standings
 
 router = APIRouter(prefix="/api/events", tags=["events"])
-
-# Check-in opens this many hours before the event start (BR-37).
-CHECK_IN_OPENS_BEFORE_HOURS = 1
 
 
 def _tags_by_event(db: Session, event_ids: list[int]) -> dict[int, list[dict]]:
@@ -44,7 +41,6 @@ def _serialize_event(event: Event, tags: list[dict], *, include_check_in_code: b
         "event_id": event.event_id,
         "title": event.title,
         "event_date": event.event_date,
-        "event_end_date": event.event_end_date,
         "location": event.location,
         "event_zip_code": event.event_zip_code,
         "event_description": event.event_description,
@@ -111,7 +107,6 @@ def create_event(body: EventCreate, request: Request, db: Session = Depends(get_
     event = Event(
         title=body.title,
         event_date=body.event_date,
-        event_end_date=body.event_end_date,
         location=body.location,
         event_zip_code=body.event_zip_code,
         event_description=body.event_description,
@@ -281,10 +276,6 @@ def create_rsvp(event_id: int, request: Request, db: Session = Depends(get_db)):
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
 
-    event_end = event.event_end_date or event.event_date
-    if datetime.now(timezone.utc) > event_end:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "This event has already ended")
-
     existing = db.execute(
         select(Rsvp).where(Rsvp.user_id == user_id, Rsvp.event_id == event_id)
     ).scalar_one_or_none()
@@ -313,9 +304,10 @@ def check_in(event_id: int, body: CheckInRequest, request: Request, db: Session 
     if not event.check_in_code or not secrets.compare_digest(body.code, event.check_in_code):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid check-in code")
 
+    # Generous window so demos work: from 24h before start to 24h after.
     now = datetime.now(timezone.utc)
-    if now < event.event_date - timedelta(hours=CHECK_IN_OPENS_BEFORE_HOURS):
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Check-in is not open yet")
+    if abs((event.event_date - now).total_seconds()) > 24 * 3600:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Check-in is only open around the event time")
 
     rsvp = db.execute(
         select(Rsvp).where(Rsvp.user_id == user_id, Rsvp.event_id == event_id)

@@ -13,7 +13,6 @@ class Event(Base):
     event_id: Mapped[int] = mapped_column(Integer, primary_key=True)
     title: Mapped[str] = mapped_column(String, nullable=False)
     event_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    event_end_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     location: Mapped[str] = mapped_column(String, nullable=False)
     event_zip_code: Mapped[int] = mapped_column(Integer, nullable=False)
     event_description: Mapped[str] = mapped_column(String, nullable=False)

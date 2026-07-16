@@ -122,9 +122,7 @@ fruition.
 | --- | --- |
 | profile_id | SERIAL PRIMARY KEY |
 | display_name | TEXT NOT NULL |
-| profile_picture | TEXT DEFAULT /images/default_avatar.svg |
-| picture_data | BYTEA — uploaded avatar bytes (nullable; unset when using the default avatar) |
-| picture_mime | TEXT — MIME type of `picture_data` (nullable) |
+| profile_picture | TEXT DEFAULT /images/default_avatar.png |
 | bio | TEXT NOT NULL |
 | user_id | INTEGER REFERENCES users(user_id) ON DELETE CASCADE |
 | home_zip_code | TEXT NOT NULL |
@@ -136,7 +134,6 @@ fruition.
 | event_id | SERIAL PRIMARY KEY |
 | title | TEXT NOT NULL |
 | event_date | TIMESTAMPTZ NOT NULL |
-| event_end_date | TIMESTAMPTZ — nullable for events created before this column existed; required going forward (enforced by `EventCreate`, not a DB constraint) |
 | location | TEXT NOT NULL |
 | event_zip_code | INT NOT NULL |
 | event_description | TEXT NOT NULL |
@@ -309,7 +306,7 @@ Returns events, with optional filtering by zip code, proximity, date, status, or
   - `?after=` filter for events on/after a given ISO date
   - `?tag_id=` filter to events tagged with a given tag
 - **Response:**
-  - Success: `[{ event_id, title, event_date, event_end_date, location, event_zip_code, event_description, event_capacity, status, host_id, event_image_url, latitude, longitude, tags: [{ tag_id, name }, ...] }, ...]` 200
+  - Success: `[{ event_id, title, event_date, location, event_zip_code, event_description, event_capacity, status, host_id, event_image_url, latitude, longitude, tags: [{ tag_id, name }, ...] }, ...]` 200
 
 **GET /api/events/:event_id**
 
@@ -317,17 +314,17 @@ Returns a single event's details. When the requester is the event's host, the re
 
 - **Request Body:** None
 - **Response:**
-  - Success: `{ event_id, title, event_date, event_end_date, location, event_zip_code, event_description, event_capacity, status, host_id, event_image_url, latitude, longitude, tags: [{ tag_id, name }, ...] }` 200
+  - Success: `{ event_id, title, event_date, location, event_zip_code, event_description, event_capacity, status, host_id, event_image_url, latitude, longitude, tags: [{ tag_id, name }, ...] }` 200
   - Error, Not Found: `{ message }` 404
 
 **POST /api/events**
 
 Creates a new event hosted by the authenticated user. The server generates a random `check_in_code` for the event and returns it to the host.
 
-- **Request Body:** `{ title, event_date, event_end_date, location, event_zip_code, event_description, event_capacity, event_image_url, latitude, longitude, status="open", tag_ids=[] }`
-  - `title`, `event_date`, `event_end_date`, `location`, `event_zip_code`, `event_description`, `event_capacity`, `event_image_url`, `latitude`, and `longitude` are required. `event_capacity` must be greater than 0. `status` is optional, defaulting to `"open"`. `tag_ids` is optional, defaulting to an empty list.
+- **Request Body:** `{ title, event_date, location, event_zip_code, event_description, event_capacity, event_image_url, latitude, longitude, status="open", tag_ids=[] }`
+  - `title`, `event_date`, `location`, `event_zip_code`, `event_description`, `event_capacity`, `event_image_url`, `latitude`, and `longitude` are required. `event_capacity` must be greater than 0. `status` is optional, defaulting to `"open"`. `tag_ids` is optional, defaulting to an empty list.
 - **Response:**
-  - Success: `{ event_id, title, event_date, event_end_date, location, event_zip_code, event_description, event_capacity, status, host_id, event_image_url, latitude, longitude, check_in_code, tags: [{ tag_id, name }, ...] }` 201
+  - Success: `{ event_id, title, event_date, location, event_zip_code, event_description, event_capacity, status, host_id, event_image_url, latitude, longitude, check_in_code, tags: [{ tag_id, name }, ...] }` 201
   - Error, Not Authenticated: `{ message }` 401
   - Error, Validation: `{ message }` 400
 
@@ -335,9 +332,9 @@ Creates a new event hosted by the authenticated user. The server generates a ran
 
 Updates an event. Only the host may update it.
 
-- **Request Body:** `{ title, event_date, event_end_date, location, event_zip_code, event_description, event_capacity, status, event_image_url, latitude, longitude }` (all optional — only included fields are updated)
+- **Request Body:** `{ title, event_date, location, event_zip_code, event_description, event_capacity, status, event_image_url, latitude, longitude }` (all optional — only included fields are updated)
 - **Response:**
-  - Success: `{ event_id, title, event_date, event_end_date, location, event_zip_code, event_description, event_capacity, status, host_id, event_image_url, latitude, longitude, tags: [{ tag_id, name }, ...] }` 200
+  - Success: `{ event_id, title, event_date, location, event_zip_code, event_description, event_capacity, status, host_id, event_image_url, latitude, longitude, tags: [{ tag_id, name }, ...] }` 200
   - Error, Not Authenticated: `{ message }` 401
   - Error, Unauthorized: `{ message }` 403
   - Error, Not Found: `{ message }` 404
@@ -418,7 +415,7 @@ Marks the authenticated attendee as having attended, by presenting the host's QR
   - Success: `{ rsvp_id, user_id, event_id, status, did_attend, created_at, checked_in_at }` 200
   - Error, Not Authenticated: `{ message }` 401
   - Error, Invalid Code: `{ message }` 400
-  - Error, Check-In Not Open Yet (check-in opens `CHECK_IN_OPENS_BEFORE_HOURS` (1h) before `event_date`, with no upper bound): `{ message }` 400
+  - Error, Outside Event Window (check-in opens 24h before the event and closes 24h after): `{ message }` 400
   - Error, Not Found (event doesn't exist, or no RSVP for this event): `{ message }` 404
   - Error, Already Checked In: `{ message }` 409
 
@@ -430,7 +427,6 @@ Creates an RSVP for the authenticated user to the given event. The RSVP is alway
 - **Response:**
   - Success: `{ rsvp_id, user_id, event_id, status, did_attend, created_at, checked_in_at }` 201
   - Error, Not Authenticated: `{ message }` 401
-  - Error, Event Ended (`now` is past `event_end_date`, falling back to `event_date` for events with no end date set): `{ message }` 400
   - Error, Conflict (user already RSVP'd — unique on user_id, event_id): `{ message }` 409
   - Error, Not Found (event doesn't exist): `{ message }` 404
 
