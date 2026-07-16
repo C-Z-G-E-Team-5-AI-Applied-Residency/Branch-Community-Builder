@@ -31,4 +31,4 @@ class EventUpdate(BaseModel):
 
 
 class AnnouncementCreate(BaseModel):
-    message: str
+    message: str = Field(max_length=500)

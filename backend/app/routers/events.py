@@ -337,7 +337,12 @@ def _serialize_announcement(announcement: Announcement) -> dict:
     }
 
 @router.get("/{event_id}/announcements")
-def list_event_announcements(event_id: int, db: Session = Depends(get_db)):
+def list_event_announcements(
+    event_id: int,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
     """All announcements for an event, newest-first. 200 / 404."""
     event = db.get(Event, event_id)
     if event is None:
@@ -347,6 +352,8 @@ def list_event_announcements(event_id: int, db: Session = Depends(get_db)):
         select(Announcement)
         .where(Announcement.event_id == event_id)
         .order_by(Announcement.created_at.desc())
+        .limit(limit)
+        .offset(offset)
     ).scalars().all()
     return [_serialize_announcement(a) for a in announcements]
 
