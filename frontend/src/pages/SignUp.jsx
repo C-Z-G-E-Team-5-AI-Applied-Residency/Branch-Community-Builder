@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api, currentUser } from "../api/client.js";
+import AvatarInput from "../components/AvatarInput.jsx";
 
 export default function SignUp() {
   const navigate = useNavigate();
@@ -20,6 +21,7 @@ export default function SignUp() {
     bio: "",
     home_zip_code: "",
   });
+  const [pictureFile, setPictureFile] = useState(null);
   const [user, setUser] = useState(me);
 
   const [tags, setTags] = useState([]);
@@ -69,6 +71,10 @@ export default function SignUp() {
           throw err;
         }
       }
+      // profile exists now (created above or already there on a resubmit),
+      // so a failed upload leaves us on this step to retry — the 409 branch
+      // makes resubmitting safe
+      if (pictureFile) await api.uploadProfilePicture(user.user_id, pictureFile);
       setStep("interests");
     } catch (err) {
       setError(err.message);
@@ -121,6 +127,7 @@ export default function SignUp() {
       {step === "profile" && (
         <form onSubmit={onCreateProfile}>
           <h2>Your profile</h2>
+          <AvatarInput onChange={setPictureFile} />
           <label>
             Display name
             <input value={profile.display_name} onChange={setP("display_name")} required />
