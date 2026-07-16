@@ -4,6 +4,41 @@ import { Link, useParams } from "react-router-dom";
 import { api, currentUser } from "../api/client.js";
 import QRScanner from "../components/QRScanner.jsx";
 
+// Must match CHECK_IN_OPENS_BEFORE_HOURS in backend/app/routers/events.py (BR-37).
+const CHECK_IN_OPENS_BEFORE_HOURS = 1;
+
+function ordinal(day) {
+  if (day >= 11 && day <= 13) return `${day}th`;
+  switch (day % 10) {
+    case 1: return `${day}st`;
+    case 2: return `${day}nd`;
+    case 3: return `${day}rd`;
+    default: return `${day}th`;
+  }
+}
+
+function formatCheckInOpensNotice(opensAt) {
+  const diffMs = opensAt - new Date();
+  if (diffMs <= 0) return "now open";
+
+  const totalHours = Math.floor(diffMs / (60 * 60 * 1000));
+  const days = Math.floor(totalHours / 24);
+  const hours = totalHours % 24;
+  const countdown =
+    [
+      days > 0 ? `${days} day${days === 1 ? "" : "s"}` : null,
+      hours > 0 ? `${hours} hour${hours === 1 ? "" : "s"}` : null,
+    ]
+      .filter(Boolean)
+      .join(", ") || "less than an hour";
+
+  const weekday = opensAt.toLocaleDateString("en-US", { weekday: "long" });
+  const month = opensAt.toLocaleDateString("en-US", { month: "long" });
+  const time = opensAt.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+
+  return `In ${countdown} on ${weekday}, ${month} ${ordinal(opensAt.getDate())} ${time}`;
+}
+
 export default function EventDetail() {
   const { eventId } = useParams();
   const me = currentUser();
@@ -27,6 +62,13 @@ export default function EventDetail() {
   const isHost = me && me.user_id === event.host_id;
   const myRsvp = me ? rsvps.find((r) => r.user_id === me.user_id) : null;
   const goingCount = rsvps.filter((r) => r.status === "going").length;
+
+  const checkInOpensAt = new Date(
+    new Date(event.event_date).getTime() - CHECK_IN_OPENS_BEFORE_HOURS * 60 * 60 * 1000
+  );
+
+  const eventEnd = new Date(event.event_end_date || event.event_date);
+  const hasEnded = Date.now() > eventEnd;
 
   async function onRsvp() {
     setNotice(null);
@@ -86,16 +128,23 @@ export default function EventDetail() {
 
       {notice && <p role="status">{notice}</p>}
 
-      {me && !isHost && !myRsvp && <button onClick={onRsvp}>RSVP</button>}
+      {me && !isHost && !myRsvp && hasEnded && <p>This event has ended.</p>}
+      {me && !isHost && !myRsvp && !hasEnded && <button onClick={onRsvp}>RSVP</button>}
       {me && myRsvp && myRsvp.status === "going" && !myRsvp.did_attend && (
         <>
           <button onClick={onCancel}>Cancel RSVP</button>{" "}
           <button onClick={() => setScanning((s) => !s)}>
             {scanning ? "Stop scanning" : "Scan host QR to check in"}
           </button>
+          <p>
+            Check-in opens {CHECK_IN_OPENS_BEFORE_HOURS} hour
+            {CHECK_IN_OPENS_BEFORE_HOURS === 1 ? "" : "s"} before the event (
+            {formatCheckInOpensNotice(checkInOpensAt)}).
+          </p>
         </>
       )}
-      {me && myRsvp && myRsvp.status === "cancelled" && (
+      {me && myRsvp && myRsvp.status === "cancelled" && hasEnded && <p>This event has ended.</p>}
+      {me && myRsvp && myRsvp.status === "cancelled" && !hasEnded && (
         <button
           onClick={async () => {
             await api.updateRsvp(myRsvp.rsvp_id, { status: "going" }).catch((err) => setNotice(err.message));
