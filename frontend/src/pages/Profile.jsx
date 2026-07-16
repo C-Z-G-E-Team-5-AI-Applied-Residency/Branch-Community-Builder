@@ -141,7 +141,14 @@ export default function Profile() {
         <>
           <p>{profile.bio}</p>
           <p>Home ZIP: {profile.home_zip_code}</p>
-          {isOwn && <button onClick={() => setEditing(true)}>Edit profile</button>}
+          {isOwn && (
+            <>
+              <button onClick={() => setEditing(true)}>Edit profile</button>{" "}
+              <button onClick={() => navigate("/signup", { state: { step: "tutorial" } })}>
+                Replay tutorial
+              </button>
+            </>
+          )}
         </>
       )}
 

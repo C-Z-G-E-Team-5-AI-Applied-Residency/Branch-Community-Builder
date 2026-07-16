@@ -5,6 +5,9 @@ import { api, currentUser } from "../api/client.js";
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 
+// One-time first-host hint, dismissed per user per browser.
+const hintKey = (userId) => `branch:hosting-hint-dismissed:${userId}`;
+
 async function geocode(address) {
   const params = new URLSearchParams({ q: address, format: "json", limit: "1" });
   const res = await fetch(`${NOMINATIM_URL}?${params}`);
@@ -30,6 +33,12 @@ export default function CreateEvent() {
   const [selectedTags, setSelectedTags] = useState([]);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showHint, setShowHint] = useState(() => me && !localStorage.getItem(hintKey(me.user_id)));
+
+  function dismissHint() {
+    localStorage.setItem(hintKey(me.user_id), "1");
+    setShowHint(false);
+  }
 
   useEffect(() => {
     api.listTags().then(setTags).catch(() => setTags([]));
@@ -82,6 +91,23 @@ export default function CreateEvent() {
   return (
     <main>
       <h1>New Event</h1>
+      {showHint && (
+        <aside style={{ background: "white", borderRadius: 8, padding: "0.75rem", marginBottom: "1rem" }}>
+          <h2 style={{ marginTop: 0 }}>First time hosting? 🌿</h2>
+          <ul>
+            <li>Your title and description are what people see when they tap your pin on the Discover map.</li>
+            <li>Use a real street address — we turn it into that map pin automatically.</li>
+            <li>Pick tags that fit: the AI matchmaker uses them to recommend your event to the right people.</li>
+            <li>
+              After creating, open <strong>host check-in (QR)</strong> on your event page — attendees
+              scan it at the door, and every check-in builds your community standing.
+            </li>
+          </ul>
+          <button type="button" onClick={dismissHint}>
+            Got it — don't show this again
+          </button>
+        </aside>
+      )}
       <form onSubmit={onSubmit}>
         <label>
           Title

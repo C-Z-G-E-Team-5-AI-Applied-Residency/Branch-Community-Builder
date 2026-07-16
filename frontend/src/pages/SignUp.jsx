@@ -1,16 +1,32 @@
-// Sign-up onboarding: account -> profile -> interest picker -> /discover.
+// Sign-up onboarding: account -> profile -> tutorial -> interest picker -> /discover.
 // Sign-in redirects profile-less accounts here with state {step: "profile"}
 // so abandoned onboarding resumes instead of leaving a user with no profile.
+// Profile's "Replay tutorial" enters at {step: "tutorial"}; replays exit to /discover.
 import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api, currentUser } from "../api/client.js";
+import MapSlide from "../components/tutorial/MapSlide.jsx";
+import RsvpSlide from "../components/tutorial/RsvpSlide.jsx";
+import CheckInSlide from "../components/tutorial/CheckInSlide.jsx";
+import RecsSlide from "../components/tutorial/RecsSlide.jsx";
+
+// Interactive walkthrough — each slide is a hands-on demo on fake data, no API writes.
+const TUTORIAL_SLIDES = [
+  { title: "Discover events near you", component: MapSlide },
+  { title: "RSVP in one tap", component: RsvpSlide },
+  { title: "Check in when you arrive", component: CheckInSlide },
+  { title: "Recommendations that learn", component: RecsSlide },
+];
 
 export default function SignUp() {
   const navigate = useNavigate();
   const location = useLocation();
-  const me = location.state?.step === "profile" ? currentUser() : null;
+  const resumeStep = location.state?.step;
+  const me = resumeStep === "profile" || resumeStep === "tutorial" ? currentUser() : null;
+  const replay = Boolean(me) && resumeStep === "tutorial";
 
-  const [step, setStep] = useState(me ? "profile" : "account"); // account -> profile -> interests
+  const [step, setStep] = useState(me ? resumeStep : "account"); // account -> profile -> tutorial -> interests
+  const [slide, setSlide] = useState(0);
   const [error, setError] = useState(null);
   const [busy, setBusy] = useState(false);
 
@@ -31,6 +47,9 @@ export default function SignUp() {
 
   const setA = (f) => (e) => setAccount({ ...account, [f]: e.target.value });
   const setP = (f) => (e) => setProfile({ ...profile, [f]: e.target.value });
+
+  const TutorialSlide = TUTORIAL_SLIDES[slide].component;
+  const exitTutorial = () => (replay ? navigate("/discover") : setStep("interests"));
 
   async function onCreateAccount(e) {
     e.preventDefault();
@@ -69,7 +88,7 @@ export default function SignUp() {
           throw err;
         }
       }
-      setStep("interests");
+      setStep("tutorial");
     } catch (err) {
       setError(err.message);
     } finally {
@@ -94,7 +113,13 @@ export default function SignUp() {
 
   return (
     <main>
-      <h1>{step === "account" ? "Create Account" : "Set Up Your Profile"}</h1>
+      <h1>
+        {step === "account"
+          ? "Create Account"
+          : step === "tutorial"
+            ? "How Branch Works"
+            : "Set Up Your Profile"}
+      </h1>
       {error && <p role="alert" style={{ color: "crimson" }}>{error}</p>}
 
       {step === "account" && (
@@ -135,6 +160,37 @@ export default function SignUp() {
           </label>
           <button type="submit" disabled={busy}>Continue</button>
         </form>
+      )}
+
+      {step === "tutorial" && (
+        <div>
+          <h2>{TUTORIAL_SLIDES[slide].title}</h2>
+          <TutorialSlide />
+          <p>
+            {slide + 1} of {TUTORIAL_SLIDES.length}
+          </p>
+          <p>
+            {slide > 0 && (
+              <button type="button" onClick={() => setSlide(slide - 1)} style={{ marginRight: "0.5rem" }}>
+                Back
+              </button>
+            )}
+            {slide < TUTORIAL_SLIDES.length - 1 ? (
+              <>
+                <button type="button" onClick={() => setSlide(slide + 1)} style={{ marginRight: "0.5rem" }}>
+                  Next
+                </button>
+                <button type="button" onClick={exitTutorial}>
+                  {replay ? "Exit tutorial" : "Skip tutorial"}
+                </button>
+              </>
+            ) : (
+              <button type="button" onClick={exitTutorial}>
+                {replay ? "Done" : "Continue"}
+              </button>
+            )}
+          </p>
+        </div>
       )}
 
       {step === "interests" && (
