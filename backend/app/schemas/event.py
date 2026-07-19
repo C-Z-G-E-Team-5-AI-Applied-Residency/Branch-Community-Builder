@@ -28,3 +28,7 @@ class EventUpdate(BaseModel):
     event_image_url: str | None = None
     latitude: float | None = Field(default=None, ge=-90, le=90)
     longitude: float | None = Field(default=None, ge=-180, le=180)
+
+
+class AnnouncementCreate(BaseModel):
+    message: str = Field(max_length=500)
