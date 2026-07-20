@@ -55,6 +55,7 @@ def _serialize_event(event: Event, tags: list[dict], *, include_check_in_code: b
         "latitude": event.latitude,
         "longitude": event.longitude,
         "tags": tags,
+        "check_in_opens_before_hours": CHECK_IN_OPENS_BEFORE_HOURS,
     }
     if include_check_in_code:
         out["check_in_code"] = event.check_in_code

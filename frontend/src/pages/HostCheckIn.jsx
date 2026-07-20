@@ -6,9 +6,6 @@ import { api } from "../api/client.js";
 
 const POLL_MS = 5000;
 
-// Must match CHECK_IN_OPENS_BEFORE_HOURS in backend/app/routers/events.py (BR-37).
-const CHECK_IN_OPENS_BEFORE_HOURS = 1;
-
 export default function HostCheckIn() {
   const { eventId } = useParams();
   const [event, setEvent] = useState(null);
@@ -50,8 +47,9 @@ export default function HostCheckIn() {
   const going = rsvps.filter((r) => r.status === "going");
   const checkedIn = rsvps.filter((r) => r.did_attend);
 
+  const checkInOpensBeforeHours = event.check_in_opens_before_hours;
   const checkInOpensAt = new Date(
-    new Date(event.event_date).getTime() - CHECK_IN_OPENS_BEFORE_HOURS * 60 * 60 * 1000
+    new Date(event.event_date).getTime() - checkInOpensBeforeHours * 60 * 60 * 1000
   );
 
   return (
@@ -60,8 +58,8 @@ export default function HostCheckIn() {
       <p>
         This code is valid and can be displayed at any time, but the server
         won't accept attendee check-ins until{" "}
-        <strong>{checkInOpensAt.toLocaleString()}</strong> ({CHECK_IN_OPENS_BEFORE_HOURS}{" "}
-        hour{CHECK_IN_OPENS_BEFORE_HOURS === 1 ? "" : "s"} before the event).
+        <strong>{checkInOpensAt.toLocaleString()}</strong> ({checkInOpensBeforeHours}{" "}
+        hour{checkInOpensBeforeHours === 1 ? "" : "s"} before the event).
       </p>
       <p>Have attendees scan this code:</p>
       <QRCode value={event.check_in_code} />

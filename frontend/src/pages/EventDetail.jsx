@@ -4,9 +4,6 @@ import { Link, useParams } from "react-router-dom";
 import { api, currentUser } from "../api/client.js";
 import QRScanner from "../components/QRScanner.jsx";
 
-// Must match CHECK_IN_OPENS_BEFORE_HOURS in backend/app/routers/events.py (BR-37).
-const CHECK_IN_OPENS_BEFORE_HOURS = 1;
-
 function ordinal(day) {
   if (day >= 11 && day <= 13) return `${day}th`;
   switch (day % 10) {
@@ -63,8 +60,9 @@ export default function EventDetail() {
   const myRsvp = me ? rsvps.find((r) => r.user_id === me.user_id) : null;
   const goingCount = rsvps.filter((r) => r.status === "going").length;
 
+  const checkInOpensBeforeHours = event.check_in_opens_before_hours;
   const checkInOpensAt = new Date(
-    new Date(event.event_date).getTime() - CHECK_IN_OPENS_BEFORE_HOURS * 60 * 60 * 1000
+    new Date(event.event_date).getTime() - checkInOpensBeforeHours * 60 * 60 * 1000
   );
 
   const eventEnd = new Date(event.event_end_date || event.event_date);
@@ -137,8 +135,8 @@ export default function EventDetail() {
             {scanning ? "Stop scanning" : "Scan host QR to check in"}
           </button>
           <p>
-            Check-in opens {CHECK_IN_OPENS_BEFORE_HOURS} hour
-            {CHECK_IN_OPENS_BEFORE_HOURS === 1 ? "" : "s"} before the event (
+            Check-in opens {checkInOpensBeforeHours} hour
+            {checkInOpensBeforeHours === 1 ? "" : "s"} before the event (
             {formatCheckInOpensNotice(checkInOpensAt)}).
           </p>
         </>
