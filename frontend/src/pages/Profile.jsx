@@ -89,21 +89,23 @@ export default function Profile() {
       <h1>
         {profile.display_name} <LeaderBadge userId={Number(userId)} />
       </h1>
-      <img
-        className="avatar"
-        src={avatarSrc}
-        alt=""
-        width={96}
-        height={96}
-        onError={(e) => {
-          e.currentTarget.onerror = null;
-          e.currentTarget.src = DEFAULT_AVATAR;
-        }}
-      />
+      {!editing && (
+        <img
+          className="avatar"
+          src={avatarSrc}
+          alt=""
+          width={96}
+          height={96}
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = DEFAULT_AVATAR;
+          }}
+        />
+      )}
 
       {editing ? (
         <form onSubmit={onSave}>
-          <AvatarInput onChange={setPictureFile} />
+          <AvatarInput currentSrc={avatarSrc} onChange={setPictureFile} />
           {hasUpload && (
             <button type="button" onClick={onRemovePicture}>
               Remove photo

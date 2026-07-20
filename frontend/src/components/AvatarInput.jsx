@@ -1,7 +1,7 @@
 // Avatar picker with in-app circular crop: choose a file, adjust the crop in
 // a dialog, and the parent gets back a square PNG File ready for the existing
 // upload endpoint. Used by sign-up onboarding and profile edit.
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Cropper from "react-easy-crop";
 
 const OUTPUT_SIZE = 512; // square px — a 512² PNG stays well under the 2 MB cap
@@ -28,12 +28,22 @@ async function cropToFile(src, area) {
   return new File([blob], "avatar.png", { type: "image/png" });
 }
 
-export default function AvatarInput({ onChange }) {
+export default function AvatarInput({ currentSrc = null, onChange }) {
   const [rawSrc, setRawSrc] = useState(null); // object URL being cropped
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
   const [areaPixels, setAreaPixels] = useState(null);
-  const [preview, setPreview] = useState(null); // object URL of the cropped result
+  // object URL of a newly cropped pick, pending upload; null = nothing picked yet,
+  // so the display below falls back to currentSrc. Separate from currentSrc so
+  // "discard" can drop the pending pick without touching the saved picture.
+  const [preview, setPreview] = useState(null);
+
+  // Owns revocation: fires on every preview change (dropping the old URL) and
+  // on unmount, so a pending pick never leaks its object URL either way.
+  useEffect(() => {
+    if (!preview) return;
+    return () => URL.revokeObjectURL(preview);
+  }, [preview]);
 
   function onPick(e) {
     const file = e.target.files[0];
@@ -51,21 +61,21 @@ export default function AvatarInput({ onChange }) {
 
   async function onApply() {
     const file = await cropToFile(rawSrc, areaPixels);
-    if (preview) URL.revokeObjectURL(preview);
     setPreview(URL.createObjectURL(file));
     onChange(file);
     closeCropper();
   }
 
   function onClear() {
-    URL.revokeObjectURL(preview);
     setPreview(null);
     onChange(null);
   }
 
+  const displaySrc = preview || currentSrc;
+
   return (
     <div className="avatar-input">
-      {preview && <img className="avatar avatar-preview" src={preview} alt="Profile preview" />}
+      {displaySrc && <img className="avatar avatar-preview" src={displaySrc} alt="Profile preview" />}
       <label>
         Profile picture (optional)
         <input
@@ -76,7 +86,7 @@ export default function AvatarInput({ onChange }) {
       </label>
       {preview && (
         <button type="button" onClick={onClear}>
-          Clear photo
+          Discard new photo
         </button>
       )}
 
