@@ -41,7 +41,10 @@ CREATE TABLE events (
     latitude        DOUBLE PRECISION NOT NULL,
     geo             GEOGRAPHY(POINT, 4326) GENERATED ALWAYS AS
                         (ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography) STORED,
-    check_in_code   TEXT
+    check_in_code   TEXT,
+    flyer_url       TEXT,            -- template asset path, or /api/events/{id}/flyer once uploaded
+    flyer_data      BYTEA,           -- uploaded flyer bytes (served at /api/events/{id}/flyer)
+    flyer_mime      TEXT
 );
 CREATE INDEX events_geo_idx ON events USING GIST (geo);
 
