@@ -41,6 +41,8 @@ export default function EventDetail() {
   const me = currentUser();
   const [event, setEvent] = useState(null);
   const [rsvps, setRsvps] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
+  const [announcementDraft, setAnnouncementDraft] = useState("");
   const [scanning, setScanning] = useState(false);
   const [notice, setNotice] = useState(null);
   const [error, setError] = useState(null);
@@ -49,6 +51,7 @@ export default function EventDetail() {
   const load = useCallback(() => {
     api.getEvent(eventId).then(setEvent).catch((err) => setError(err.message));
     api.getEventRsvps(eventId).then(setRsvps).catch(() => setRsvps([]));
+    api.getEventAnnouncements(eventId).then(setAnnouncements).catch(() => setAnnouncements([]));
   }, [eventId]);
 
   useEffect(load, [load]);
@@ -104,6 +107,29 @@ export default function EventDetail() {
     }
   }
 
+  async function onPostAnnouncement(e) {
+    e.preventDefault();
+    if (!announcementDraft.trim()) return;
+    setNotice(null);
+    try {
+      await api.postEventAnnouncement(event.event_id, announcementDraft.trim());
+      setAnnouncementDraft("");
+      load();
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+
+  async function onDeleteAnnouncement(announcementId) {
+    setNotice(null);
+    try {
+      await api.deleteEventAnnouncement(event.event_id, announcementId);
+      load();
+    } catch (err) {
+      setNotice(err.message);
+    }
+  }
+
   return (
     <main>
       <h1>{event.title}</h1>
@@ -112,6 +138,37 @@ export default function EventDetail() {
         {event.event_zip_code}
       </p>
       <p>{event.event_description}</p>
+
+      <section>
+        <h2>Announcements</h2>
+        {isHost && (
+          <form onSubmit={onPostAnnouncement}>
+            <input
+              type="text"
+              value={announcementDraft}
+              onChange={(e) => setAnnouncementDraft(e.target.value)}
+              placeholder="Post an announcement…"
+            />
+            <button type="submit">Post</button>
+          </form>
+        )}
+        {announcements.length === 0 && <p>No announcements yet.</p>}
+        <ul>
+          {announcements.map((a) => (
+            <li key={a.announcement_id}>
+              {a.message}{" "}
+              <em>({new Date(a.created_at).toLocaleString()})</em>
+              {isHost && (
+                <>
+                  {" "}
+                  <button onClick={() => onDeleteAnnouncement(a.announcement_id)}>Delete</button>
+                </>
+              )}
+            </li>
+          ))}
+        </ul>
+      </section>
+
       <p>
         {goingCount} going · capacity {event.event_capacity} · status {event.status}
       </p>

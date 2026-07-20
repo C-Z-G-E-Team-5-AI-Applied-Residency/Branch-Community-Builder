@@ -85,6 +85,12 @@ export const api = {
   deleteRsvp: (rsvpId) => request(`/api/rsvps/${rsvpId}`, { method: "DELETE" }),
   checkIn: (eventId, code) =>
     request(`/api/events/${eventId}/check-in`, { method: "POST", body: { code } }),
+  // announcements
+  getEventAnnouncements: (eventId) => request(`/api/events/${eventId}/announcements`),
+  postEventAnnouncement: (eventId, message) =>
+    request(`/api/events/${eventId}/announcements`, { method: "POST", body: { message } }),
+  deleteEventAnnouncement: (eventId, announcementId) =>
+    request(`/api/events/${eventId}/announcements/${announcementId}`, { method: "DELETE" }),
   // users / profiles
   getUser: (userId) => request(`/api/users/${userId}`),
   deleteAccount: (userId) =>
