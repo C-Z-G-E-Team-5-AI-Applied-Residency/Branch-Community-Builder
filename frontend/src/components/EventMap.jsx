@@ -1,5 +1,5 @@
 // Leaflet map with a marker per event. Centered on the user's area.
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import { Link } from "react-router-dom";
 import L from "leaflet";
@@ -31,15 +31,36 @@ function InvalidateOnResize() {
   return null;
 }
 
+// Smoothly pans/zooms to a new center instead of the caller remounting the
+// whole map (which used to cause a hard jump-cut to the new area). Skips
+// the very first render since MapContainer's own center/zoom props already
+// place it there on mount.
+function FlyToOnChange({ center, zoom }) {
+  const map = useMap();
+  const isFirstRender = useRef(true);
+  const key = `${center[0]},${center[1]},${zoom}`;
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    map.flyTo(center, zoom, { duration: 1 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [key]);
+  return null;
+}
+
 export default function EventMap({
   events = [],
   center = [40.7359, -74.0036],
+  zoom = 12,
   height = 400,
   onSelectEvent,
 }) {
   return (
-    <MapContainer center={center} zoom={12} style={{ height, width: "100%" }}>
+    <MapContainer center={center} zoom={zoom} style={{ height, width: "100%" }}>
       <InvalidateOnResize />
+      <FlyToOnChange center={center} zoom={zoom} />
       <TileLayer
         url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'

@@ -1,14 +1,15 @@
 // Top bar per wireframe: [ BRANCH… ] brand, nav on the right.
-// Signed in: Profile / My Events / My RSVPs / + Create Event.
+// Signed in: Profile / My Events / My RSVPs / + Create Event all live on the
+// Discover map's own overlay nav now (see BackToDiscover.jsx for the
+// reverse trip back here). Sign out lives on the profile page instead.
 // Signed out: About / Contact, plus Sign In (hidden on the sign-in page itself).
 import { useEffect, useRef } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { api, currentUser } from "../api/client.js";
+import { Link, useLocation } from "react-router-dom";
+import { currentUser } from "../api/client.js";
 import BackToDiscover from "./BackToDiscover.jsx";
 
 export default function Header() {
   const me = currentUser();
-  const navigate = useNavigate();
   const { pathname } = useLocation();
   const headerRef = useRef(null);
 
@@ -26,34 +27,19 @@ export default function Header() {
     return () => observer.disconnect();
   }, []);
 
-  async function onLogout() {
-    await api.logout().catch(() => {});
-    navigate("/signin");
-  }
-
   return (
     <header className="app-header" ref={headerRef}>
       <Link to="/discover" className="brand">[ BRANCH… ]</Link>
       <BackToDiscover />
-      <nav>
-        {me ? (
-          <>
-            <Link to={`/profile/${me.user_id}`}>Profile</Link>
-            <Link to={`/profile/${me.user_id}#my-events`}>My Events</Link>
-            <Link to={`/profile/${me.user_id}#my-rsvps`}>My RSVPs</Link>
-            <Link to="/events/new" className="btn btn-primary">+ Create Event</Link>
-            <button onClick={onLogout}>Sign out</button>
-          </>
-        ) : (
-          <>
-            <a href="#about">About</a>
-            <a href="#contact">Contact</a>
-            {pathname !== "/signin" && (
-              <Link to="/signin" className="btn btn-primary">Sign In</Link>
-            )}
-          </>
-        )}
-      </nav>
+      {!me && (
+        <nav>
+          <a href="#about">About</a>
+          <a href="#contact">Contact</a>
+          {pathname !== "/signin" && (
+            <Link to="/signin" className="btn btn-primary">Sign In</Link>
+          )}
+        </nav>
+      )}
     </header>
   );
 }

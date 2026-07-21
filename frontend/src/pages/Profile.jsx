@@ -1,6 +1,8 @@
 // User profile: display name, bio, interests, community standing / leader badge.
+// Hosted events and RSVPs live only on the dedicated /events and /rsvps
+// pages (reached via the map's nav overlay) — not duplicated here.
 import { useCallback, useEffect, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 import { api, apiUrl, currentUser } from "../api/client.js";
 import LeaderBadge from "../components/LeaderBadge.jsx";
 
@@ -14,8 +16,6 @@ export default function Profile() {
 
   const [profile, setProfile] = useState(null);
   const [standings, setStandings] = useState([]);
-  const [hosted, setHosted] = useState([]);
-  const [rsvps, setRsvps] = useState([]);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ display_name: "", bio: "", home_zip_code: "" });
   const [pictureFile, setPictureFile] = useState(null);
@@ -32,12 +32,6 @@ export default function Profile() {
       })
       .catch((err) => setError(err.message));
     api.getUserStandings(userId).then(setStandings).catch(() => setStandings([]));
-    // no host_id filter on the API yet — filter client-side (fine at MVP scale)
-    api
-      .listEvents()
-      .then((all) => setHosted(all.filter((e) => e.host_id === Number(userId))))
-      .catch(() => setHosted([]));
-    api.getUserRsvps(userId).then(setRsvps).catch(() => setRsvps([]));
   }, [userId]);
 
   useEffect(load, [load]);
@@ -58,6 +52,11 @@ export default function Profile() {
     } catch (err) {
       setError(err.message);
     }
+  }
+
+  async function onLogout() {
+    await api.logout().catch(() => {});
+    navigate("/signin");
   }
 
   async function onDeleteAccount() {
@@ -156,35 +155,6 @@ export default function Profile() {
         <p>No interests yet.</p>
       )}
 
-      <h2 id="my-events">{isOwn ? "My events" : "Hosted events"}</h2>
-      {hosted.length ? (
-        <ul>
-          {hosted.map((e) => (
-            <li key={e.event_id}>
-              <Link to={`/events/${e.event_id}`}>{e.title}</Link> ·{" "}
-              {new Date(e.event_date).toLocaleString()}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>No hosted events.</p>
-      )}
-
-      <h2 id="my-rsvps">{isOwn ? "My RSVPs" : "RSVPs"}</h2>
-      {rsvps.length ? (
-        <ul>
-          {rsvps.map((r) => (
-            <li key={r.rsvp_id}>
-              <Link to={`/events/${r.event_id}`}>{r.event.title}</Link> ·{" "}
-              {new Date(r.event.event_date).toLocaleString()} · {r.status}
-              {r.did_attend && " · ✅ attended"}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>No RSVPs yet.</p>
-      )}
-
       <h2>Community standing</h2>
       {standings.length ? (
         <ul>
@@ -198,6 +168,12 @@ export default function Profile() {
         </ul>
       ) : (
         <p>No community activity yet.</p>
+      )}
+
+      {isOwn && (
+        <p>
+          <button onClick={onLogout}>Sign out</button>
+        </p>
       )}
 
       {isOwn && (
