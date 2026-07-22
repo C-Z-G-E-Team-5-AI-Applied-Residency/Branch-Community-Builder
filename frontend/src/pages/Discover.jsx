@@ -6,10 +6,11 @@ import { Link } from "react-router-dom";
 import EventMap from "../components/EventMap.jsx";
 import EventCard from "../components/EventCard.jsx";
 import EventDetailModal from "../components/EventDetailModal.jsx";
-import { api, currentUser } from "../api/client.js";
+import { api } from "../api/client.js";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export default function Discover() {
-  const me = currentUser();
+  const me = useAuth();
   const [events, setEvents] = useState([]);
   const [recs, setRecs] = useState([]);
   const [refreshing, setRefreshing] = useState(false);

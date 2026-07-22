@@ -106,6 +106,7 @@ export const api = {
   deleteAccount: (userId) =>
     request(`/api/users/${userId}`, { method: "DELETE" }).then((res) => {
       localStorage.removeItem(USER_KEY);
+      window.dispatchEvent(new Event("branch:user"));
       return res;
     }),
   getProfile: (userId) => request(`/api/profiles/${userId}`),

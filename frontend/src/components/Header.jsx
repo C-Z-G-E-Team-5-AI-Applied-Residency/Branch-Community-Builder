@@ -3,17 +3,17 @@
 // Discover map's own overlay nav now (see BackToDiscover.jsx for the
 // reverse trip back here). Sign out lives on the profile page instead.
 // Signed out: About / Contact, plus Sign In (hidden on the sign-in page itself).
-import { useEffect, useState, useRef } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { api, currentUser } from "../api/client.js";
+import { useEffect, useRef } from "react";
+import { Link, useLocation } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
 import BackToDiscover from "./BackToDiscover.jsx";
 
 export default function Header() {
-  // Signup/login happen without a route change (SignUp is a single-page
-  // step flow), so we can't rely on re-rendering from useLocation() alone —
-  // listen for the auth event client.js fires after each localStorage write.
-  const [me, setMe] = useState(currentUser());
-  const navigate = useNavigate();
+  // Signup/login happen without a route change (SignUp is a single-page step
+  // flow), so useLocation() re-renders alone don't cover it — useAuth() gives
+  // us live auth state (it listens for the "branch:user" event client.js fires
+  // after each localStorage write) so the nav updates without a refresh.
+  const me = useAuth();
   const { pathname } = useLocation();
   const headerRef = useRef(null);
 

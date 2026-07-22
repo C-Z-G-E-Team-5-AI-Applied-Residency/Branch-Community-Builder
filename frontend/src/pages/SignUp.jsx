@@ -1,10 +1,13 @@
 // Sign-up onboarding: account -> profile -> tutorial -> interest picker -> /discover.
-// Sign-in redirects profile-less accounts here with state {step: "profile"}
-// so abandoned onboarding resumes instead of leaving a user with no profile.
-// Profile's "Replay tutorial" enters at {step: "tutorial"}; replays exit to /discover.
+// Sign-in redirects profile-less accounts here with ?step=profile so abandoned
+// onboarding resumes instead of leaving a user with no profile.
+// Profile's "Replay tutorial" enters at ?step=tutorial; replays exit to /discover.
+// The entry step lives in the query string (not router state) so it survives a
+// hard refresh mid-replay instead of silently dropping back to a new-signup flow.
 import { useEffect, useState } from "react";
-import { Link, useLocation, useNavigate } from "react-router-dom";
-import { api, currentUser } from "../api/client.js";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import { api } from "../api/client.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import MapSlide from "../components/tutorial/MapSlide.jsx";
 import RsvpSlide from "../components/tutorial/RsvpSlide.jsx";
 import CheckInSlide from "../components/tutorial/CheckInSlide.jsx";
@@ -21,9 +24,10 @@ const TUTORIAL_SLIDES = [
 
 export default function SignUp() {
   const navigate = useNavigate();
-  const location = useLocation();
-  const resumeStep = location.state?.step;
-  const me = resumeStep === "profile" || resumeStep === "tutorial" ? currentUser() : null;
+  const [searchParams] = useSearchParams();
+  const resumeStep = searchParams.get("step");
+  const authUser = useAuth();
+  const me = resumeStep === "profile" || resumeStep === "tutorial" ? authUser : null;
   const replay = Boolean(me) && resumeStep === "tutorial";
 
   const [step, setStep] = useState(me ? resumeStep : "account"); // account -> profile -> tutorial -> interests
@@ -50,7 +54,6 @@ export default function SignUp() {
   const setA = (f) => (e) => setAccount({ ...account, [f]: e.target.value });
   const setP = (f) => (e) => setProfile({ ...profile, [f]: e.target.value });
 
-  const TutorialSlide = TUTORIAL_SLIDES[slide].component;
   const exitTutorial = () => (replay ? navigate("/discover") : setStep("interests"));
 
   async function onCreateAccount(e) {
@@ -172,7 +175,14 @@ export default function SignUp() {
       {step === "tutorial" && (
         <div>
           <h2>{TUTORIAL_SLIDES[slide].title}</h2>
-          <TutorialSlide />
+          {/* Keep every slide mounted and just hide the inactive ones, so a
+              user's hands-on progress (RSVP tapped, pin seen, practice scan)
+              survives navigating Back/Next instead of remounting to zero. */}
+          {TUTORIAL_SLIDES.map(({ title, component: Slide }, i) => (
+            <div key={title} hidden={i !== slide}>
+              <Slide />
+            </div>
+          ))}
           <p>
             {slide + 1} of {TUTORIAL_SLIDES.length}
           </p>

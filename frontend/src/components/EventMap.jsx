@@ -58,6 +58,8 @@ export default function EventMap({
   zoom = 12,
   height = 400,
   onSelectEvent,
+  onMarkerClick,
+  renderPopup,
 }) {
   return (
     <MapContainer center={center} zoom={zoom} style={{ height, width: "100%" }}>
@@ -82,7 +84,13 @@ export default function EventMap({
                 <br />
                 {new Date(e.event_date).toLocaleString()}
                 <br />
-                <Link to={`/events/${e.event_id}`}>Details &amp; RSVP</Link>
+                {onSelectEvent ? (
+                  <button type="button" onClick={() => onSelectEvent(e.event_id)}>
+                    Details &amp; RSVP
+                  </button>
+                ) : (
+                  <Link to={`/events/${e.event_id}`}>Details &amp; RSVP</Link>
+                )}
               </>
             )}
           </Popup>

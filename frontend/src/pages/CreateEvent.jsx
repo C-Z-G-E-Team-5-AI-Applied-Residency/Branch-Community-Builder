@@ -1,7 +1,8 @@
 // New event form. Address is geocoded client-side (Nominatim) into lat/lng.
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, currentUser } from "../api/client.js";
+import { api } from "../api/client.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import { FLYER_TEMPLATES } from "../flyerTemplates.js";
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
@@ -20,7 +21,7 @@ async function geocode(address) {
 
 export default function CreateEvent() {
   const navigate = useNavigate();
-  const me = currentUser();
+  const me = useAuth();
   const [tags, setTags] = useState([]);
   const [form, setForm] = useState({
     title: "",
