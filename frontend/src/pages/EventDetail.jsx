@@ -4,6 +4,25 @@ import { Link, useParams } from "react-router-dom";
 import { api, currentUser } from "../api/client.js";
 import QRScanner from "../components/QRScanner.jsx";
 
+// Full date+time for older posts, just the time for anything posted today.
+function formatAnnouncementTime(dateStr) {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const postedToday =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  return postedToday
+    ? date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })
+    : date.toLocaleString();
+}
+
+// Distinguishes each delete button for screen readers navigating a list of
+// several announcements, where identical labels would be indistinguishable.
+function truncate(text, max = 40) {
+  return text.length > max ? `${text.slice(0, max).trimEnd()}…` : text;
+}
+
 export default function EventDetail() {
   const { eventId } = useParams();
   const me = currentUser();
@@ -11,6 +30,7 @@ export default function EventDetail() {
   const [rsvps, setRsvps] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [announcementDraft, setAnnouncementDraft] = useState("");
+  const [postingAnnouncement, setPostingAnnouncement] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [notice, setNotice] = useState(null);
   const [error, setError] = useState(null);
@@ -69,14 +89,17 @@ export default function EventDetail() {
 
   async function onPostAnnouncement(e) {
     e.preventDefault();
-    if (!announcementDraft.trim()) return;
+    if (!announcementDraft.trim() || postingAnnouncement) return;
     setNotice(null);
+    setPostingAnnouncement(true);
     try {
       await api.postEventAnnouncement(event.event_id, announcementDraft.trim());
       setAnnouncementDraft("");
       load();
     } catch (err) {
       setNotice(err.message);
+    } finally {
+      setPostingAnnouncement(false);
     }
   }
 
@@ -102,27 +125,35 @@ export default function EventDetail() {
       <section>
         <h2>Announcements</h2>
         {isHost && (
-          <form onSubmit={onPostAnnouncement}>
+          <form className="announcement-form" onSubmit={onPostAnnouncement}>
             <input
               type="text"
               value={announcementDraft}
               onChange={(e) => setAnnouncementDraft(e.target.value)}
               placeholder="Post an announcement…"
+              aria-label="Post an announcement"
+              maxLength={500}
+              disabled={postingAnnouncement}
             />
-            <button type="submit">Post</button>
+            <button type="submit" disabled={postingAnnouncement}>
+              {postingAnnouncement ? "Posting…" : "Post"}
+            </button>
           </form>
         )}
         {announcements.length === 0 && <p>No announcements yet.</p>}
-        <ul>
+        <ul className="plain announcement-list">
           {announcements.map((a) => (
             <li key={a.announcement_id}>
-              {a.message}{" "}
-              <em>({new Date(a.created_at).toLocaleString()})</em>
+              <span>
+                {a.message} <em>({formatAnnouncementTime(a.created_at)})</em>
+              </span>
               {isHost && (
-                <>
-                  {" "}
-                  <button onClick={() => onDeleteAnnouncement(a.announcement_id)}>Delete</button>
-                </>
+                <button
+                  onClick={() => onDeleteAnnouncement(a.announcement_id)}
+                  aria-label={`Delete announcement: ${truncate(a.message)}`}
+                >
+                  Delete
+                </button>
               )}
             </li>
           ))}
