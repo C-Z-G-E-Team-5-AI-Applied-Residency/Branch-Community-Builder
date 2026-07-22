@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { api, apiUrl, currentUser } from "../api/client.js";
+import AvatarInput from "../components/AvatarInput.jsx";
 import LeaderBadge from "../components/LeaderBadge.jsx";
 
 const DEFAULT_AVATAR = "/images/default_avatar.svg";
@@ -88,27 +89,23 @@ export default function Profile() {
       <h1>
         {profile.display_name} <LeaderBadge userId={Number(userId)} />
       </h1>
-      <img
-        src={avatarSrc}
-        alt=""
-        width={96}
-        height={96}
-        onError={(e) => {
-          e.currentTarget.onerror = null;
-          e.currentTarget.src = DEFAULT_AVATAR;
-        }}
-      />
+      {!editing && (
+        <img
+          className="avatar"
+          src={avatarSrc}
+          alt=""
+          width={96}
+          height={96}
+          onError={(e) => {
+            e.currentTarget.onerror = null;
+            e.currentTarget.src = DEFAULT_AVATAR;
+          }}
+        />
+      )}
 
       {editing ? (
         <form onSubmit={onSave}>
-          <label>
-            Profile picture
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              onChange={(e) => setPictureFile(e.target.files[0] ?? null)}
-            />
-          </label>
+          <AvatarInput currentSrc={avatarSrc} onChange={setPictureFile} />
           {hasUpload && (
             <button type="button" onClick={onRemovePicture}>
               Remove photo

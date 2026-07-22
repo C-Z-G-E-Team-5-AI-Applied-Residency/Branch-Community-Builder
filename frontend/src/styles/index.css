@@ -242,6 +242,42 @@ textarea { min-height: 90px; resize: vertical; }
   font-size: 0.85rem;
 }
 
+/* ---------- avatar + crop dialog ---------- */
+.avatar {
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1.5px solid var(--line);
+  background: var(--panel-2);
+}
+.avatar-input { margin-bottom: 0.9rem; }
+.avatar-input .avatar-preview { width: 96px; height: 96px; display: block; margin-bottom: 0.5rem; }
+.crop-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2000; /* above leaflet panes and the AI rail */
+  background: rgba(74, 68, 51, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.crop-dialog {
+  background: var(--panel);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  padding: 1rem;
+  width: min(92vw, 420px);
+}
+.crop-area {
+  position: relative; /* react-easy-crop fills its nearest positioned parent */
+  height: 300px;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #3a3628;
+}
+.crop-dialog label { margin: 0.75rem 0 0.5rem; }
+input[type="range"] { padding: 0; border: none; background: transparent; accent-color: var(--green); }
+.crop-actions { text-align: right; }
+
 .notice { color: var(--green-dark); }
 .error { color: #a04b3c; }
 

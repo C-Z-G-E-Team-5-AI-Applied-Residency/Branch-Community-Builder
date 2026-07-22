@@ -1,5 +1,5 @@
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import cast, func, select
@@ -9,16 +9,20 @@ from geoalchemy2 import Geography
 
 from app.core.security import current_user_id, require_user
 from app.database import get_db
+from app.models.announcement import Announcement
 from app.models.event import Event
 from app.models.rsvp import Rsvp
 from app.models.tag import EventTag, Tag
 from app.models.user import User
-from app.schemas.event import EventCreate, EventUpdate
+from app.schemas.event import AnnouncementCreate, EventCreate, EventUpdate
 from app.schemas.rsvp import CheckInRequest
 from app.schemas.tag import TagAdd
 from app.services import standings
 
 router = APIRouter(prefix="/api/events", tags=["events"])
+
+# Check-in opens this many hours before the event start (BR-37).
+CHECK_IN_OPENS_BEFORE_HOURS = 1
 
 
 def _tags_by_event(db: Session, event_ids: list[int]) -> dict[int, list[dict]]:
@@ -41,6 +45,7 @@ def _serialize_event(event: Event, tags: list[dict], *, include_check_in_code: b
         "event_id": event.event_id,
         "title": event.title,
         "event_date": event.event_date,
+        "event_end_date": event.event_end_date,
         "location": event.location,
         "event_zip_code": event.event_zip_code,
         "event_description": event.event_description,
@@ -51,6 +56,7 @@ def _serialize_event(event: Event, tags: list[dict], *, include_check_in_code: b
         "latitude": event.latitude,
         "longitude": event.longitude,
         "tags": tags,
+        "check_in_opens_before_hours": CHECK_IN_OPENS_BEFORE_HOURS,
     }
     if include_check_in_code:
         out["check_in_code"] = event.check_in_code
@@ -107,6 +113,7 @@ def create_event(body: EventCreate, request: Request, db: Session = Depends(get_
     event = Event(
         title=body.title,
         event_date=body.event_date,
+        event_end_date=body.event_end_date,
         location=body.location,
         event_zip_code=body.event_zip_code,
         event_description=body.event_description,
@@ -276,6 +283,10 @@ def create_rsvp(event_id: int, request: Request, db: Session = Depends(get_db)):
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
 
+    event_end = event.event_end_date or event.event_date
+    if datetime.now(timezone.utc) > event_end:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "This event has already ended")
+
     existing = db.execute(
         select(Rsvp).where(Rsvp.user_id == user_id, Rsvp.event_id == event_id)
     ).scalar_one_or_none()
@@ -304,10 +315,9 @@ def check_in(event_id: int, body: CheckInRequest, request: Request, db: Session 
     if not event.check_in_code or not secrets.compare_digest(body.code, event.check_in_code):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid check-in code")
 
-    # Generous window so demos work: from 24h before start to 24h after.
     now = datetime.now(timezone.utc)
-    if abs((event.event_date - now).total_seconds()) > 24 * 3600:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Check-in is only open around the event time")
+    if now < event.event_date - timedelta(hours=CHECK_IN_OPENS_BEFORE_HOURS):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Check-in is not open yet")
 
     rsvp = db.execute(
         select(Rsvp).where(Rsvp.user_id == user_id, Rsvp.event_id == event_id)
@@ -323,3 +333,79 @@ def check_in(event_id: int, body: CheckInRequest, request: Request, db: Session 
     db.commit()
     db.refresh(rsvp)
     return _serialize_rsvp(rsvp)
+
+
+# --- announcements ------------------------------------------------
+def _serialize_announcement(announcement: Announcement) -> dict:
+    return {
+        "announcement_id": announcement.announcement_id,
+        "event_id": announcement.event_id,
+        "host_id": announcement.host_id,
+        "message": announcement.message,
+        "created_at": announcement.created_at,
+    }
+
+@router.get("/{event_id}/announcements")
+def list_event_announcements(
+    event_id: int,
+    limit: int = Query(50, ge=1, le=100),
+    offset: int = Query(0, ge=0),
+    db: Session = Depends(get_db),
+):
+    """All announcements for an event, newest-first. 200 / 404."""
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+
+    announcements = db.execute(
+        select(Announcement)
+        .where(Announcement.event_id == event_id)
+        .order_by(Announcement.created_at.desc())
+        .limit(limit)
+        .offset(offset)
+    ).scalars().all()
+    return [_serialize_announcement(a) for a in announcements]
+
+
+@router.post("/{event_id}/announcements", status_code=201)
+def create_event_announcement(
+    event_id: int, body: AnnouncementCreate, request: Request, db: Session = Depends(get_db)
+):
+    """Post an announcement to an event (host only). 201 / 401 / 403 / 404."""
+    user_id = require_user(request)
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    if event.host_id != user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
+
+    announcement = Announcement(event_id=event_id, host_id=user_id, message=body.message)
+    db.add(announcement)
+    db.commit()
+    db.refresh(announcement)
+    return _serialize_announcement(announcement)
+
+
+@router.delete("/{event_id}/announcements/{announcement_id}")
+def delete_event_announcement(
+    event_id: int, announcement_id: int, request: Request, db: Session = Depends(get_db)
+):
+    """Delete an announcement (host only). 200 / 401 / 403 / 404."""
+    user_id = require_user(request)
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    if event.host_id != user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
+
+    announcement = db.execute(
+        select(Announcement).where(
+            Announcement.announcement_id == announcement_id, Announcement.event_id == event_id
+        )
+    ).scalar_one_or_none()
+    if announcement is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Announcement not found on this event")
+
+    db.delete(announcement)
+    db.commit()
+    return {"message": "announcement deleted"}

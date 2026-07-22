@@ -29,6 +29,7 @@ CREATE TABLE events (
     event_id        SERIAL PRIMARY KEY,
     title           TEXT NOT NULL,
     event_date      TIMESTAMPTZ NOT NULL,
+    event_end_date  TIMESTAMPTZ,
     location        TEXT NOT NULL,
     event_zip_code  INTEGER NOT NULL,
     event_description TEXT NOT NULL,
@@ -119,7 +120,7 @@ CREATE TABLE recommendations (
 CREATE TABLE announcements (
     announcement_id SERIAL PRIMARY KEY,
     event_id        INTEGER NOT NULL REFERENCES events(event_id) ON DELETE CASCADE,
-    host_id         INTEGER NOT NULL REFERENCES users,
+    host_id         INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
     message         TEXT NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
