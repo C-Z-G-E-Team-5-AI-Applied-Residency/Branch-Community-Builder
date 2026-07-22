@@ -1,13 +1,23 @@
 // Top bar per wireframe: [ BRANCH… ] brand, nav on the right.
 // Signed in: Profile / My Events / My RSVPs / + Create Event.
 // Signed out: About / Contact, plus Sign In (hidden on the sign-in page itself).
+import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { api, currentUser } from "../api/client.js";
 
 export default function Header() {
-  const me = currentUser();
+  // Signup/login happen without a route change (SignUp is a single-page
+  // step flow), so we can't rely on re-rendering from useLocation() alone —
+  // listen for the auth event client.js fires after each localStorage write.
+  const [me, setMe] = useState(currentUser());
   const navigate = useNavigate();
   const { pathname } = useLocation();
+
+  useEffect(() => {
+    const onAuthChange = () => setMe(currentUser());
+    window.addEventListener("branch:user", onAuthChange);
+    return () => window.removeEventListener("branch:user", onAuthChange);
+  }, []);
 
   async function onLogout() {
     await api.logout().catch(() => {});
