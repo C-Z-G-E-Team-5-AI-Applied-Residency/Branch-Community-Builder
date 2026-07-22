@@ -57,6 +57,10 @@ export function currentUser() {
 }
 function rememberUser(user) {
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+  // localStorage alone doesn't trigger a re-render (and the storage event only
+  // fires in *other* tabs), so components that show the signed-in user (e.g.
+  // Header) need this to update immediately after signup/login in this tab.
+  window.dispatchEvent(new Event("branch:user"));
   return user;
 }
 
@@ -67,9 +71,10 @@ export const api = {
   login: (data) =>
     request("/api/auth/login", { method: "POST", body: data }).then(rememberUser),
   logout: () =>
-    request("/api/auth/logout", { method: "POST" }).finally(() =>
-      localStorage.removeItem(USER_KEY)
-    ),
+    request("/api/auth/logout", { method: "POST" }).finally(() => {
+      localStorage.removeItem(USER_KEY);
+      window.dispatchEvent(new Event("branch:user"));
+    }),
   // events
   listEvents: (filters = {}) => request(`/api/events${toQuery(filters)}`),
   getEvent: (id) => request(`/api/events/${id}`),
@@ -107,6 +112,7 @@ export const api = {
   deleteAccount: (userId) =>
     request(`/api/users/${userId}`, { method: "DELETE" }).then((res) => {
       localStorage.removeItem(USER_KEY);
+      window.dispatchEvent(new Event("branch:user"));
       return res;
     }),
   getProfile: (userId) => request(`/api/profiles/${userId}`),

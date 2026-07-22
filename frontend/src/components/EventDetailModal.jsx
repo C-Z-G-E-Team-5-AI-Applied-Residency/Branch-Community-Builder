@@ -3,7 +3,8 @@
 // clicking the backdrop.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, currentUser } from "../api/client.js";
+import { api } from "../api/client.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import QRScanner from "./QRScanner.jsx";
 
 function ordinal(day) {
@@ -39,7 +40,7 @@ function formatCheckInOpensNotice(opensAt) {
 }
 
 export default function EventDetailModal({ eventId, onClose }) {
-  const me = currentUser();
+  const me = useAuth();
   const [event, setEvent] = useState(null);
   const [rsvps, setRsvps] = useState([]);
   const [scanning, setScanning] = useState(false);

@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import EventCard from "../components/EventCard.jsx";
-import { api, currentUser } from "../api/client.js";
+import { api } from "../api/client.js";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export default function Events() {
-  const me = currentUser();
+  const me = useAuth();
   const [events, setEvents] = useState([]);
 
   useEffect(() => {

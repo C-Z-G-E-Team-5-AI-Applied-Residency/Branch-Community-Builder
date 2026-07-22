@@ -1,7 +1,8 @@
 // Single event: description, tags, RSVP button, attendee count, QR check-in.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, apiUrl, currentUser } from "../api/client.js";
+import { api, apiUrl } from "../api/client.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import FlyerModal from "../components/FlyerModal.jsx";
 import QRScanner from "../components/QRScanner.jsx";
 import { FLYER_TEMPLATES } from "../flyerTemplates.js";
@@ -59,7 +60,7 @@ function truncate(text, max = 40) {
 
 export default function EventDetail() {
   const { eventId } = useParams();
-  const me = currentUser();
+  const me = useAuth();
   const [event, setEvent] = useState(null);
   const [rsvps, setRsvps] = useState([]);
   const [announcements, setAnnouncements] = useState([]);

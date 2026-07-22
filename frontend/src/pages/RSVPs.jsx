@@ -2,11 +2,12 @@
 // Discover.jsx for the map view). Reached via the map's overlay nav.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, currentUser } from "../api/client.js";
+import { api } from "../api/client.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import QRScanner from "../components/QRScanner.jsx";
 
 export default function RSVPs() {
-  const me = currentUser();
+  const me = useAuth();
   const [rsvps, setRsvps] = useState([]);
   const [scanningRsvpId, setScanningRsvpId] = useState(null);
   const [notice, setNotice] = useState(null);

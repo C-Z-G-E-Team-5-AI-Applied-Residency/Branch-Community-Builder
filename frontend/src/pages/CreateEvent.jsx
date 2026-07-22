@@ -1,10 +1,14 @@
 // New event form. Address is geocoded client-side (Nominatim) into lat/lng.
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { api, currentUser } from "../api/client.js";
+import { api } from "../api/client.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import { FLYER_TEMPLATES } from "../flyerTemplates.js";
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
+
+// One-time first-host hint, dismissed per user per browser.
+const hintKey = (userId) => `branch:hosting-hint-dismissed:${userId}`;
 
 async function geocode(address) {
   const params = new URLSearchParams({ q: address, format: "json", limit: "1" });
@@ -17,7 +21,7 @@ async function geocode(address) {
 
 export default function CreateEvent() {
   const navigate = useNavigate();
-  const me = currentUser();
+  const me = useAuth();
   const [tags, setTags] = useState([]);
   const [form, setForm] = useState({
     title: "",
@@ -32,9 +36,15 @@ export default function CreateEvent() {
   const [selectedTags, setSelectedTags] = useState([]);
   const [error, setError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showHint, setShowHint] = useState(() => me && !localStorage.getItem(hintKey(me.user_id)));
   const [flyerFile, setFlyerFile] = useState(null);
   const [flyerTemplateId, setFlyerTemplateId] = useState(null);
   const [dragActive, setDragActive] = useState(false);
+
+  function dismissHint() {
+    localStorage.setItem(hintKey(me.user_id), "1");
+    setShowHint(false);
+  }
 
   useEffect(() => {
     api.listTags().then(setTags).catch(() => setTags([]));
@@ -115,6 +125,23 @@ export default function CreateEvent() {
   return (
     <main>
       <h1>New Event</h1>
+      {showHint && (
+        <aside style={{ background: "white", borderRadius: 8, padding: "0.75rem", marginBottom: "1rem" }}>
+          <h2 style={{ marginTop: 0 }}>First time hosting? 🌿</h2>
+          <ul>
+            <li>Your title and description are what people see when they tap your pin on the Discover map.</li>
+            <li>Use a real street address — we turn it into that map pin automatically.</li>
+            <li>Pick tags that fit: the AI matchmaker uses them to recommend your event to the right people.</li>
+            <li>
+              After creating, open <strong>host check-in (QR)</strong> on your event page — attendees
+              scan it at the door, and every check-in builds your community standing.
+            </li>
+          </ul>
+          <button type="button" onClick={dismissHint}>
+            Got it — don't show this again
+          </button>
+        </aside>
+      )}
       <form onSubmit={onSubmit}>
         <label>
           Title

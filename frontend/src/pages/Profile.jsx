@@ -3,7 +3,8 @@
 // pages (reached via the map's nav overlay) — not duplicated here.
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-import { api, apiUrl, currentUser } from "../api/client.js";
+import { api, apiUrl } from "../api/client.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import AvatarInput from "../components/AvatarInput.jsx";
 import LeaderBadge from "../components/LeaderBadge.jsx";
 
@@ -12,7 +13,7 @@ const DEFAULT_AVATAR = "/images/default_avatar.svg";
 export default function Profile() {
   const { userId } = useParams();
   const navigate = useNavigate();
-  const me = currentUser();
+  const me = useAuth();
   const isOwn = me && me.user_id === Number(userId);
 
   const [profile, setProfile] = useState(null);
@@ -137,7 +138,14 @@ export default function Profile() {
         <>
           <p>{profile.bio}</p>
           <p>Home ZIP: {profile.home_zip_code}</p>
-          {isOwn && <button onClick={() => setEditing(true)}>Edit profile</button>}
+          {isOwn && (
+            <>
+              <button onClick={() => setEditing(true)}>Edit profile</button>{" "}
+              <button onClick={() => navigate("/signup?step=tutorial")}>
+                Replay tutorial
+              </button>
+            </>
+          )}
         </>
       )}
 

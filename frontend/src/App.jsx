@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from "react-router-dom";
-import { currentUser } from "./api/client.js";
+import { useAuth } from "./context/AuthContext.jsx";
 import Header from "./components/Header.jsx";
 import Footer from "./components/Footer.jsx";
 import SignIn from "./pages/SignIn.jsx";
@@ -15,7 +15,8 @@ import HostCheckIn from "./pages/HostCheckIn.jsx";
 // Everything except sign-in/sign-up requires a signed-in user; visitors
 // without a session land on the sign-in page.
 function RequireAuth({ children }) {
-  return currentUser() ? children : <Navigate to="/signin" replace />;
+  const me = useAuth();
+  return me ? children : <Navigate to="/signin" replace />;
 }
 
 export default function App() {

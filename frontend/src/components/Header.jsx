@@ -5,11 +5,15 @@
 // Signed out: About / Contact, plus Sign In (hidden on the sign-in page itself).
 import { useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { currentUser } from "../api/client.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import BackToDiscover from "./BackToDiscover.jsx";
 
 export default function Header() {
-  const me = currentUser();
+  // Signup/login happen without a route change (SignUp is a single-page step
+  // flow), so useLocation() re-renders alone don't cover it — useAuth() gives
+  // us live auth state (it listens for the "branch:user" event client.js fires
+  // after each localStorage write) so the nav updates without a refresh.
+  const me = useAuth();
   const { pathname } = useLocation();
   const headerRef = useRef(null);
 

@@ -8,6 +8,8 @@ import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 // Vite doesn't serve Leaflet's default icon paths; point them at bundled assets.
+// Drop _getIconUrl first or Leaflet prepends its auto-detected imagePath to these URLs.
+delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
   iconUrl: markerIcon,
@@ -56,6 +58,8 @@ export default function EventMap({
   zoom = 12,
   height = 400,
   onSelectEvent,
+  onMarkerClick,
+  renderPopup,
 }) {
   return (
     <MapContainer center={center} zoom={zoom} style={{ height, width: "100%" }}>
@@ -66,18 +70,28 @@ export default function EventMap({
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
       />
       {events.map((e) => (
-        <Marker key={e.event_id} position={[e.latitude, e.longitude]}>
+        <Marker
+          key={e.event_id}
+          position={[e.latitude, e.longitude]}
+          eventHandlers={onMarkerClick ? { click: () => onMarkerClick(e) } : undefined}
+        >
           <Popup>
-            <strong>{e.title}</strong>
-            <br />
-            {new Date(e.event_date).toLocaleString()}
-            <br />
-            {onSelectEvent ? (
-              <button type="button" className="popup-link" onClick={() => onSelectEvent(e.event_id)}>
-                Details &amp; RSVP
-              </button>
+            {renderPopup ? (
+              renderPopup(e)
             ) : (
-              <Link to={`/events/${e.event_id}`}>Details &amp; RSVP</Link>
+              <>
+                <strong>{e.title}</strong>
+                <br />
+                {new Date(e.event_date).toLocaleString()}
+                <br />
+                {onSelectEvent ? (
+                  <button type="button" onClick={() => onSelectEvent(e.event_id)}>
+                    Details &amp; RSVP
+                  </button>
+                ) : (
+                  <Link to={`/events/${e.event_id}`}>Details &amp; RSVP</Link>
+                )}
+              </>
             )}
           </Popup>
         </Marker>
