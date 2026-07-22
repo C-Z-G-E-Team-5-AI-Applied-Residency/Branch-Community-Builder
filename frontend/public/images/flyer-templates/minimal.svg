@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" width="600" height="800">
+  <rect width="600" height="800" fill="#ffffff"/>
+  <line x1="60" y1="360" x2="150" y2="360" stroke="#7c9473" stroke-width="3"/>
+  <text x="60" y="300" font-family="Helvetica, Arial, sans-serif" font-size="42" fill="#3f4a3a">Event</text>
+  <text x="60" y="345" font-family="Helvetica, Arial, sans-serif" font-size="42" fill="#3f4a3a">Title</text>
+  <text x="60" y="440" font-family="Helvetica, Arial, sans-serif" font-size="20" fill="#5a6653">Date &amp; Time</text>
+  <text x="60" y="475" font-family="Helvetica, Arial, sans-serif" font-size="20" fill="#5a6653">Location</text>
+  <text x="60" y="750" font-family="Helvetica, Arial, sans-serif" font-size="16" fill="#7c9473">Hosted with Branch</text>
+</svg>

@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" width="600" height="800">
+  <rect width="600" height="800" fill="#3f4a3a"/>
+  <rect y="0" width="600" height="220" fill="#7c9473"/>
+  <polygon points="0,220 600,180 600,220" fill="#dbe7d3"/>
+  <text x="300" y="130" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="46" fill="#f4f1ea">YOU'RE INVITED</text>
+  <text x="300" y="420" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-weight="bold" font-size="48" fill="#dbe7d3">Event Title</text>
+  <rect x="140" y="470" width="320" height="4" fill="#dbe7d3"/>
+  <text x="300" y="540" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="26" fill="#f4f1ea">Date &amp; Time</text>
+  <text x="300" y="580" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="26" fill="#f4f1ea">Location</text>
+  <text x="300" y="740" text-anchor="middle" font-family="Helvetica, Arial, sans-serif" font-size="18" fill="#dbe7d3">Hosted with Branch</text>
+</svg>

@@ -5,6 +5,8 @@ import Footer from "./components/Footer.jsx";
 import SignIn from "./pages/SignIn.jsx";
 import SignUp from "./pages/SignUp.jsx";
 import Discover from "./pages/Discover.jsx";
+import Events from "./pages/Events.jsx";
+import RSVPs from "./pages/RSVPs.jsx";
 import CreateEvent from "./pages/CreateEvent.jsx";
 import EventDetail from "./pages/EventDetail.jsx";
 import Profile from "./pages/Profile.jsx";
@@ -25,6 +27,8 @@ export default function App() {
         <Route path="/signin" element={<SignIn />} />
         <Route path="/signup" element={<SignUp />} />
         <Route path="/discover" element={<RequireAuth><Discover /></RequireAuth>} />
+        <Route path="/events" element={<RequireAuth><Events /></RequireAuth>} />
+        <Route path="/rsvps" element={<RequireAuth><RSVPs /></RequireAuth>} />
         <Route path="/events/new" element={<RequireAuth><CreateEvent /></RequireAuth>} />
         <Route path="/events/:eventId" element={<RequireAuth><EventDetail /></RequireAuth>} />
         <Route path="/events/:eventId/host" element={<RequireAuth><HostCheckIn /></RequireAuth>} />

@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from geoalchemy2 import Geography
-from sqlalchemy import Computed, DateTime, Float, ForeignKey, Integer, String, func
+from sqlalchemy import Computed, DateTime, Float, ForeignKey, Integer, LargeBinary, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -32,3 +32,8 @@ class Event(Base):
         nullable=True,
     )
     check_in_code: Mapped[str | None] = mapped_column(String, nullable=True)
+    # URL/path shown in <img>; points at a prebuilt template asset or the
+    # flyer endpoint once bytes are uploaded
+    flyer_url: Mapped[str | None] = mapped_column(String, nullable=True)
+    flyer_data: Mapped[bytes | None] = mapped_column(LargeBinary)
+    flyer_mime: Mapped[str | None] = mapped_column(String)
