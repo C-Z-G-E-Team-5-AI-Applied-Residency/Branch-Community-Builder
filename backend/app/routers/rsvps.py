@@ -33,6 +33,11 @@ def update_rsvp(rsvp_id: int, body: RsvpUpdate, request: Request, db: Session = 
     if not is_owner and not is_host:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not your RSVP")
 
+    if changes.get("status") == "going" and event is not None:
+        event_end = event.event_end_date or event.event_date
+        if datetime.now(timezone.utc) > event_end:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "This event has already ended")
+
     newly_attended = changes.get("did_attend") is True and not rsvp.did_attend
     for field, value in changes.items():
         setattr(rsvp, field, value)

@@ -47,9 +47,20 @@ export default function HostCheckIn() {
   const going = rsvps.filter((r) => r.status === "going");
   const checkedIn = rsvps.filter((r) => r.did_attend);
 
+  const checkInOpensBeforeHours = event.check_in_opens_before_hours;
+  const checkInOpensAt = new Date(
+    new Date(event.event_date).getTime() - checkInOpensBeforeHours * 60 * 60 * 1000
+  );
+
   return (
     <main>
       <h1>Check-In — {event.title}</h1>
+      <p>
+        This code is valid and can be displayed at any time, but the server
+        won't accept attendee check-ins until{" "}
+        <strong>{checkInOpensAt.toLocaleString()}</strong> ({checkInOpensBeforeHours}{" "}
+        hour{checkInOpensBeforeHours === 1 ? "" : "s"} before the event).
+      </p>
       <p>Have attendees scan this code:</p>
       <QRCode value={event.check_in_code} />
       <p>
