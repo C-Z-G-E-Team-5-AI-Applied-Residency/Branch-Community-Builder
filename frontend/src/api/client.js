@@ -76,6 +76,17 @@ export const api = {
   createEvent: (data) => request("/api/events", { method: "POST", body: data }),
   updateEvent: (id, data) => request(`/api/events/${id}`, { method: "PATCH", body: data }),
   deleteEvent: (id) => request(`/api/events/${id}`, { method: "DELETE" }),
+  uploadEventFlyer: (eventId, file) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    return request(`/api/events/${eventId}/flyer`, { method: "PUT", formData });
+  },
+  selectFlyerTemplate: (eventId, templateId) =>
+    request(`/api/events/${eventId}/flyer/template`, {
+      method: "PUT",
+      body: { template_id: templateId },
+    }),
+  removeEventFlyer: (eventId) => request(`/api/events/${eventId}/flyer`, { method: "DELETE" }),
   // rsvps
   rsvp: (eventId) => request(`/api/events/${eventId}/rsvps`, { method: "POST", body: {} }),
   getEventRsvps: (eventId, filters = {}) =>

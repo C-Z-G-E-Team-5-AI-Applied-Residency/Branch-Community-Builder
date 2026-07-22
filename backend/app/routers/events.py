@@ -1,12 +1,14 @@
+import hashlib
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy import cast, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 from geoalchemy2 import Geography
 
+from app.core.images import MAX_IMAGE_BYTES, is_valid_image
 from app.core.security import current_user_id, require_user
 from app.database import get_db
 from app.models.announcement import Announcement
@@ -14,12 +16,24 @@ from app.models.event import Event
 from app.models.rsvp import Rsvp
 from app.models.tag import EventTag, Tag
 from app.models.user import User
-from app.schemas.event import AnnouncementCreate, EventCreate, EventUpdate
+from app.schemas.event import AnnouncementCreate, EventCreate, EventUpdate, EventCreate, EventUpdate, FlyerTemplateSelect
 from app.schemas.rsvp import CheckInRequest
 from app.schemas.tag import TagAdd
 from app.services import standings
 
 router = APIRouter(prefix="/api/events", tags=["events"])
+
+# Prebuilt flyer designs a host can pick instead of uploading their own.
+# TODO: these paths don't correspond to real assets yet — add the actual
+# template images under frontend/public/images/flyer-templates/ before
+# wiring this up to a UI.
+FLYER_TEMPLATES = {
+    "classic": "/images/flyer-templates/classic.svg",
+    "bold": "/images/flyer-templates/bold.svg",
+    "minimal": "/images/flyer-templates/minimal.svg",
+}
+# Check-in opens this many hours before the event start (BR-37).
+CHECK_IN_OPENS_BEFORE_HOURS = 1
 
 
 def _tags_by_event(db: Session, event_ids: list[int]) -> dict[int, list[dict]]:
@@ -42,6 +56,7 @@ def _serialize_event(event: Event, tags: list[dict], *, include_check_in_code: b
         "event_id": event.event_id,
         "title": event.title,
         "event_date": event.event_date,
+        "event_end_date": event.event_end_date,
         "location": event.location,
         "event_zip_code": event.event_zip_code,
         "event_description": event.event_description,
@@ -49,9 +64,11 @@ def _serialize_event(event: Event, tags: list[dict], *, include_check_in_code: b
         "status": event.status,
         "host_id": event.host_id,
         "event_image_url": event.event_image_url,
+        "flyer_url": event.flyer_url,
         "latitude": event.latitude,
         "longitude": event.longitude,
         "tags": tags,
+        "check_in_opens_before_hours": CHECK_IN_OPENS_BEFORE_HOURS,
     }
     if include_check_in_code:
         out["check_in_code"] = event.check_in_code
@@ -108,6 +125,7 @@ def create_event(body: EventCreate, request: Request, db: Session = Depends(get_
     event = Event(
         title=body.title,
         event_date=body.event_date,
+        event_end_date=body.event_end_date,
         location=body.location,
         event_zip_code=body.event_zip_code,
         event_description=body.event_description,
@@ -168,6 +186,93 @@ def delete_event(event_id: int, request: Request, db: Session = Depends(get_db))
     db.delete(event)
     db.commit()
     return {"message": "event deleted"}
+
+
+# --- event flyer ---------------------------------------------------------------
+@router.put("/{event_id}/flyer")
+async def upload_event_flyer(event_id: int, file: UploadFile, request: Request, db: Session = Depends(get_db)):
+    """Upload a custom flyer (JPEG/PNG/WebP/GIF, ≤2 MB), host only. 200 / 401 / 403 / 404 / 413 / 415."""
+    user_id = require_user(request)
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    if event.host_id != user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
+
+    data = await file.read(MAX_IMAGE_BYTES + 1)
+    if len(data) > MAX_IMAGE_BYTES:
+        raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Image must be 2 MB or smaller")
+    if not is_valid_image(file.content_type, data):
+        raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Use a JPEG, PNG, WebP, or GIF image")
+
+    event.flyer_data = data
+    event.flyer_mime = file.content_type
+    # content-hash version so browsers can cache the URL forever
+    version = hashlib.sha1(data).hexdigest()[:8]
+    event.flyer_url = f"/api/events/{event_id}/flyer?v={version}"
+    db.commit()
+    db.refresh(event)
+
+    tags_by_event = _tags_by_event(db, [event_id])
+    return _serialize_event(event, tags_by_event.get(event_id, []), include_check_in_code=True)
+
+
+@router.get("/{event_id}/flyer")
+def get_event_flyer(event_id: int, db: Session = Depends(get_db)):
+    """Serve the stored flyer bytes. 200 / 404."""
+    event = db.get(Event, event_id)
+    if event is None or event.flyer_data is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "No flyer uploaded")
+    return Response(
+        content=event.flyer_data,
+        media_type=event.flyer_mime,
+        headers={
+            "Cache-Control": "public, max-age=31536000, immutable",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.put("/{event_id}/flyer/template")
+def select_event_flyer_template(
+    event_id: int, body: FlyerTemplateSelect, request: Request, db: Session = Depends(get_db)
+):
+    """Pick a prebuilt flyer template instead of uploading, host only. 200 / 401 / 403 / 404."""
+    user_id = require_user(request)
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    if event.host_id != user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
+
+    template_path = FLYER_TEMPLATES.get(body.template_id)
+    if template_path is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown flyer template")
+
+    event.flyer_data = None
+    event.flyer_mime = None
+    event.flyer_url = template_path
+    db.commit()
+    db.refresh(event)
+
+    tags_by_event = _tags_by_event(db, [event_id])
+    return _serialize_event(event, tags_by_event.get(event_id, []), include_check_in_code=True)
+
+
+@router.delete("/{event_id}/flyer", status_code=204)
+def delete_event_flyer(event_id: int, request: Request, db: Session = Depends(get_db)):
+    """Remove the event's flyer, back to event_image_url. 204 / 401 / 403 / 404."""
+    user_id = require_user(request)
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    if event.host_id != user_id:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
+
+    event.flyer_data = None
+    event.flyer_mime = None
+    event.flyer_url = event.event_image_url
+    db.commit()
 
 
 # --- event tags ---------------------------------------------------------------
@@ -277,6 +382,10 @@ def create_rsvp(event_id: int, request: Request, db: Session = Depends(get_db)):
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
 
+    event_end = event.event_end_date or event.event_date
+    if datetime.now(timezone.utc) > event_end:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "This event has already ended")
+
     existing = db.execute(
         select(Rsvp).where(Rsvp.user_id == user_id, Rsvp.event_id == event_id)
     ).scalar_one_or_none()
@@ -305,10 +414,9 @@ def check_in(event_id: int, body: CheckInRequest, request: Request, db: Session 
     if not event.check_in_code or not secrets.compare_digest(body.code, event.check_in_code):
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid check-in code")
 
-    # Generous window so demos work: from 24h before start to 24h after.
     now = datetime.now(timezone.utc)
-    if abs((event.event_date - now).total_seconds()) > 24 * 3600:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Check-in is only open around the event time")
+    if now < event.event_date - timedelta(hours=CHECK_IN_OPENS_BEFORE_HOURS):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Check-in is not open yet")
 
     rsvp = db.execute(
         select(Rsvp).where(Rsvp.user_id == user_id, Rsvp.event_id == event_id)

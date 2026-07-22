@@ -6,6 +6,7 @@ from pydantic import BaseModel, Field
 class EventCreate(BaseModel):
     title: str
     event_date: datetime
+    event_end_date: datetime
     location: str
     event_zip_code: int
     event_description: str
@@ -17,9 +18,14 @@ class EventCreate(BaseModel):
     tag_ids: list[int] = []
 
 
+class FlyerTemplateSelect(BaseModel):
+    template_id: str
+
+
 class EventUpdate(BaseModel):
     title: str | None = None
     event_date: datetime | None = None
+    event_end_date: datetime | None = None
     location: str | None = None
     event_zip_code: int | None = None
     event_description: str | None = None

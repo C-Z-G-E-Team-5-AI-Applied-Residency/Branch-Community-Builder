@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request, Response, Upload
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.images import MAX_IMAGE_BYTES, is_valid_image
 from app.core.security import require_user
 from app.database import get_db
 from app.models.profile import DEFAULT_AVATAR, Profile
@@ -11,24 +12,6 @@ from app.models.tag import Tag, UserInterest
 from app.schemas.profile import ProfileCreate, ProfileOut, ProfileUpdate
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
-
-MAX_PICTURE_BYTES = 2 * 1024 * 1024
-
-# magic-byte prefixes per allowed type, so a renamed non-image can't be stored
-_IMAGE_MAGIC = {
-    "image/jpeg": [b"\xff\xd8\xff"],
-    "image/png": [b"\x89PNG\r\n\x1a\n"],
-    "image/gif": [b"GIF87a", b"GIF89a"],
-    "image/webp": [b"RIFF"],
-}
-
-
-def _is_valid_image(mime: str, data: bytes) -> bool:
-    if mime not in _IMAGE_MAGIC:
-        return False
-    if mime == "image/webp":
-        return data[:4] == b"RIFF" and data[8:12] == b"WEBP"
-    return any(data.startswith(magic) for magic in _IMAGE_MAGIC[mime])
 
 
 def _get_own_profile(db: Session, request: Request, user_id: int) -> Profile:
@@ -101,10 +84,10 @@ async def upload_profile_picture(
     """Upload own avatar (JPEG/PNG/WebP/GIF, ≤2 MB). 200 / 401 / 403 / 404 / 413 / 415."""
     profile = _get_own_profile(db, request, user_id)
 
-    data = await file.read(MAX_PICTURE_BYTES + 1)
-    if len(data) > MAX_PICTURE_BYTES:
+    data = await file.read(MAX_IMAGE_BYTES + 1)
+    if len(data) > MAX_IMAGE_BYTES:
         raise HTTPException(status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, "Image must be 2 MB or smaller")
-    if not _is_valid_image(file.content_type, data):
+    if not is_valid_image(file.content_type, data):
         raise HTTPException(status.HTTP_415_UNSUPPORTED_MEDIA_TYPE, "Use a JPEG, PNG, WebP, or GIF image")
 
     profile.picture_data = data

@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 800" width="600" height="800">
+  <rect width="600" height="800" fill="#f4f1ea"/>
+  <rect x="24" y="24" width="552" height="752" fill="none" stroke="#7c9473" stroke-width="4"/>
+  <circle cx="300" cy="220" r="70" fill="#dbe7d3"/>
+  <circle cx="300" cy="196" r="24" fill="#7c9473"/>
+  <path d="M254 250c8-28 26-40 46-40s38 12 46 40a70 70 0 0 1-92 0z" fill="#7c9473"/>
+  <text x="300" y="380" text-anchor="middle" font-family="Georgia, serif" font-size="40" fill="#3f4a3a">Event Title</text>
+  <line x1="150" y1="410" x2="450" y2="410" stroke="#7c9473" stroke-width="2"/>
+  <text x="300" y="470" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#5a6653">Date &amp; Time</text>
+  <text x="300" y="510" text-anchor="middle" font-family="Georgia, serif" font-size="22" fill="#5a6653">Location</text>
+  <text x="300" y="720" text-anchor="middle" font-family="Georgia, serif" font-size="18" fill="#7c9473">Hosted with Branch</text>
+</svg>
