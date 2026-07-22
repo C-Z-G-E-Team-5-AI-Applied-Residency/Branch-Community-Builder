@@ -38,6 +38,13 @@ export default function Discover() {
       onClearSearch();
       return;
     }
+    // pattern="\d{5}" on the input is browser-dependent HTML5 validation
+    // (and doesn't run at all if the form is submitted programmatically) —
+    // enforce the same 5-digit shape explicitly before hitting the API.
+    if (!/^\d{5}$/.test(trimmed)) {
+      setSearchNote("Please enter a valid 5-digit ZIP code.");
+      return;
+    }
     setSearchNote(null);
     try {
       const found = await api.listEvents({ status: "open", zip_code: trimmed });

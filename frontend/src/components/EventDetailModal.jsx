@@ -47,9 +47,20 @@ export default function EventDetailModal({ eventId, onClose }) {
   const [error, setError] = useState(null);
   const checkingIn = useRef(false); // scanner fires repeatedly; only submit once
 
+  // Returns a promise (resolving once both fetches settle) so callers can
+  // await a refresh after an action instead of firing-and-forgetting it —
+  // each branch already catches its own error, so this never rejects.
   const load = useCallback(() => {
-    api.getEvent(eventId).then(setEvent).catch((err) => setError(err.message));
-    api.getEventRsvps(eventId).then(setRsvps).catch(() => setRsvps([]));
+    return Promise.all([
+      api.getEvent(eventId).then(setEvent).catch((err) => {
+        setError(err.message);
+        console.error("EventDetailModal: failed to refresh event:", err);
+      }),
+      api.getEventRsvps(eventId).then(setRsvps).catch((err) => {
+        setRsvps([]);
+        console.error("EventDetailModal: failed to refresh RSVPs:", err);
+      }),
+    ]);
   }, [eventId]);
 
   useEffect(load, [load]);
@@ -79,7 +90,7 @@ export default function EventDetailModal({ eventId, onClose }) {
     try {
       await api.rsvp(event.event_id);
       setNotice("You're going!");
-      load();
+      await load();
     } catch (err) {
       setNotice(err.message);
     }
@@ -90,7 +101,7 @@ export default function EventDetailModal({ eventId, onClose }) {
     try {
       await api.updateRsvp(myRsvp.rsvp_id, { status: "cancelled" });
       setNotice("RSVP cancelled.");
-      load();
+      await load();
     } catch (err) {
       setNotice(err.message);
     }
@@ -103,7 +114,7 @@ export default function EventDetailModal({ eventId, onClose }) {
       await api.checkIn(event.event_id, decoded);
       setNotice("Checked in — see you there!");
       setScanning(false);
-      load();
+      await load();
     } catch (err) {
       setNotice(err.message);
       checkingIn.current = false; // allow retry on a bad scan
@@ -162,7 +173,7 @@ export default function EventDetailModal({ eventId, onClose }) {
               <button
                 onClick={async () => {
                   await api.updateRsvp(myRsvp.rsvp_id, { status: "going" }).catch((err) => setNotice(err.message));
-                  load();
+                  await load();
                 }}
               >
                 Re-confirm RSVP
