@@ -253,3 +253,65 @@ ul.plain li { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
   .ai-rail { position: static; width: auto; margin-top: 0.75rem; }
   .map-shell .leaflet-container { height: 48vh; }
 }
+
+/* ---------- flyer view/print modal ---------- */
+.flyer-view-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--green-dark);
+}
+.flyer-view-trigger img { border-radius: var(--radius); border: 1.5px solid var(--line); }
+
+.flyer-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 2000;
+  padding: 1.5rem;
+}
+
+.flyer-modal {
+  background: var(--panel);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  max-width: 90vw;
+  max-height: 90vh;
+  overflow: auto;
+  text-align: center;
+}
+
+.flyer-modal-image-wrap { position: relative; display: inline-block; }
+.flyer-modal-image { display: block; max-width: 100%; max-height: 75vh; border-radius: var(--radius); }
+
+.flyer-modal-overlay-text {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  padding: 0.75rem 1rem;
+  border-radius: 0 0 var(--radius) var(--radius);
+}
+.flyer-modal-overlay-text strong { display: block; font-size: 1.1rem; }
+
+.flyer-modal-actions { margin-top: 1rem; display: flex; gap: 0.75rem; justify-content: center; }
+
+@media print {
+  #root { display: none !important; }
+  .flyer-modal-backdrop {
+    position: static !important;
+    background: none !important;
+    padding: 0 !important;
+  }
+  .flyer-modal { box-shadow: none !important; max-width: 100% !important; max-height: none !important; }
+  .flyer-modal-no-print { display: none !important; }
+}
