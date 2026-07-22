@@ -427,6 +427,16 @@ textarea { min-height: 90px; resize: vertical; }
 }
 .ai-rail-toggle:hover { background: var(--green-soft); }
 
+.announcement-form { display: flex; gap: 0.5rem; align-items: center; margin: 0.75rem 0 1rem; }
+.announcement-form input { margin-top: 0; flex: 1; }
+.announcement-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+.announcement-list em { color: var(--ink-soft); font-size: 0.85rem; white-space: nowrap; }
+
 .chip {
   display: inline-block;
   background: var(--green-soft);
