@@ -64,7 +64,12 @@ export default function EventDetailModal({ eventId, onClose }) {
     ]);
   }, [eventId]);
 
-  useEffect(load, [load]);
+  useEffect(() => {
+    // load() now returns a promise (so actions can await a refresh) — don't
+    // pass it directly as the effect callback, or React stores that promise
+    // as the cleanup function and crashes calling it on unmount.
+    load();
+  }, [load]);
 
   useEffect(() => {
     function onKeyDown(e) {

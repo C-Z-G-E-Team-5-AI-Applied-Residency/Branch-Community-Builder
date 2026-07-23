@@ -253,18 +253,24 @@ textarea { min-height: 90px; resize: vertical; }
    layer over the map. It stays position:absolute (with z-index) at every
    width so it always paints above the leaflet-container above — its
    children can freely switch between individually-absolute (wide screens)
-   and plain static/stacked (narrow screens, see max-width:900px) without
+   and plain static/stacked (narrow screens, see max-width:1050px) without
    ever getting painted underneath the map. */
 .map-toolbar {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
+  /* Every child here is itself position:absolute, so none contribute to this
+     element's content height — without an explicit height, .ai-rail's
+     top+bottom (meant to stretch it full-height) resolve against an
+     indefinite containing-block height and it shrink-to-fits its content
+     instead, rendering far shorter than intended. */
+  height: 100%;
   z-index: 1000; /* above leaflet panes */
   pointer-events: none;
 }
 .map-toolbar > * { pointer-events: auto; }
-/* Only meaningful at narrow widths (see max-width:900px); hidden on wide
+/* Only meaningful at narrow widths (see max-width:1050px); hidden on wide
    screens where the nav/search bars are always visible directly. */
 .toolbar-dropdown-toggles { display: none; }
 .map-nav-overlay {
@@ -381,9 +387,19 @@ textarea { min-height: 90px; resize: vertical; }
 .map-shell .leaflet-container { height: 62vh; min-height: 420px; width: 100%; }
 .ai-rail {
   position: absolute;
-  top: 0.9rem;
+  /* Not 0.9rem — that's the same row .map-nav-overlay sits in, and this
+     panel (290px, unlike the small closed toggle bubble) is wide enough to
+     overlap it there. Guessed rem offsets (4rem, then 5.5rem) kept reading
+     as too close/overlapping since the nav pill's real height isn't a fixed
+     constant — use its actual measured height (--nav-overlay-h, published by
+     Discover.jsx) plus its own 0.9rem top offset and a clear gap. */
+  top: calc(0.9rem + var(--nav-overlay-h, 2.6rem) + 2.7rem);
   right: 0.9rem;
-  bottom: 0.9rem;
+  /* Not 0.9rem — Leaflet's attribution control ("Leaflet | © OpenStreetMap
+     contributors © CARTO") sits in the map's bottom-right corner too, and
+     0.9rem wasn't enough clearance to keep the panel's rounded bottom edge
+     from landing right on top of it. */
+  bottom: 2rem;
   width: 290px;
   z-index: 1000; /* above leaflet panes */
   background: var(--panel);
@@ -555,12 +571,18 @@ ul.plain li { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
   }
   .flyer-modal { box-shadow: none !important; max-width: 100% !important; max-height: none !important; }
   .flyer-modal-no-print { display: none !important; }
+}
+
 /* Below this width the nav pill (4 items), search bar, and AI bubble can no
    longer all float independently without colliding. Turn .map-toolbar into
    a plain stacked column instead — its children go from individually
    absolute-positioned to static/full-width, so they stack in DOM order
-   with real (not guessed) heights and can never overlap each other. */
-@media (max-width: 900px) {
+   with real (not guessed) heights and can never overlap each other.
+   1050 (not 900) — the search pill and nav pill actually collide starting
+   around 935px, since both are independently absolute-positioned and don't
+   know about each other's width; 900 left a ~35-90px dead zone where they
+   overlapped before this rule kicked in to stack them safely. */
+@media (max-width: 1050px) {
   .map-toolbar {
     position: absolute;
     display: flex;
@@ -572,8 +594,7 @@ ul.plain li { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
     padding: 0.75rem 0.75rem 0.75rem 3.5rem;
   }
   .map-nav-overlay,
-  .map-search-overlay,
-  .ai-rail {
+  .map-search-overlay {
     position: static;
     width: 100%;
     max-width: none;
@@ -583,7 +604,18 @@ ul.plain li { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
   .map-search-overlay form { flex-direction: column; align-items: stretch; }
   .map-search-overlay input { width: 100%; }
   .ai-rail-toggle { position: static; align-self: flex-end; }
-  .ai-rail { max-height: 60vh; }
+  /* relative, not static — .ai-rail-close is position:absolute and needs
+     this panel (not the whole .map-toolbar) as its containing block, or
+     the X jumps up to float next to the dropdown toggles instead. */
+  .ai-rail {
+    position: relative;
+    width: 100%;
+    max-width: none;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    max-height: 60vh;
+  }
 
   /* Collapse the nav pill and search bar behind their own dropdown toggles
      to save vertical space — the AI bubble/rail is unaffected and keeps

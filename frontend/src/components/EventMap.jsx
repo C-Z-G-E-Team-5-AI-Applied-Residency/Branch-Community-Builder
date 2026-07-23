@@ -85,7 +85,7 @@ export default function EventMap({
                 {new Date(e.event_date).toLocaleString()}
                 <br />
                 {onSelectEvent ? (
-                  <button type="button" onClick={() => onSelectEvent(e.event_id)}>
+                  <button type="button" className="popup-link" onClick={() => onSelectEvent(e.event_id)}>
                     Details &amp; RSVP
                   </button>
                 ) : (

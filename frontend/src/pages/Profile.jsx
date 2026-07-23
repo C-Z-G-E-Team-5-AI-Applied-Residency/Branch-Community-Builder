@@ -2,7 +2,7 @@
 // Hosted events and RSVPs live only on the dedicated /events and /rsvps
 // pages (reached via the map's nav overlay) — not duplicated here.
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { api, apiUrl } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import AvatarInput from "../components/AvatarInput.jsx";
@@ -24,6 +24,7 @@ export default function Profile() {
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteChecked, setDeleteChecked] = useState(false);
   const [error, setError] = useState(null);
+  const [noProfile, setNoProfile] = useState(false);
 
   const load = useCallback(() => {
     api
@@ -32,12 +33,20 @@ export default function Profile() {
         setProfile(p);
         setForm({ display_name: p.display_name, bio: p.bio, home_zip_code: p.home_zip_code });
       })
-      .catch((err) => setError(err.message));
+      .catch((err) => {
+        // Reachable if onboarding was abandoned right after account creation
+        // (before the profile step) and the account is later visited directly
+        // instead of through SignIn's own has_profile redirect.
+        if (err.status === 404) setNoProfile(true);
+        else setError(err.message);
+      });
     api.getUserStandings(userId).then(setStandings).catch(() => setStandings([]));
   }, [userId]);
 
   useEffect(load, [load]);
 
+  if (noProfile && isOwn) return <Navigate to="/signup?step=profile" replace />;
+  if (noProfile) return <main><h1>Profile</h1><p>This user hasn't finished setting up their profile yet.</p></main>;
   if (error) return <main><h1>Profile</h1><p role="alert">{error}</p></main>;
   if (!profile) return <main><p>Loading…</p></main>;
 
