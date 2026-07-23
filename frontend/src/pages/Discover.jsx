@@ -1,7 +1,7 @@
 // Main page: full-page interactive event map. Search happens right on the
 // map (zip/location overlay, top-left) — no separate event list here
 // anymore; see Events.jsx/RSVPs.jsx for those dedicated pages.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import EventMap from "../components/EventMap.jsx";
 import EventCard from "../components/EventCard.jsx";
@@ -25,6 +25,21 @@ export default function Discover() {
   // these and stay always-visible (see the max-width:900px CSS).
   const [navOpen, setNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const navRef = useRef(null);
+
+  // Guessed rem offsets for the AI rail's top position kept coming up short
+  // (the nav pill's real height varies with font/zoom/content) and left it
+  // reading as overlapping the nav row above. Publish the nav's actual
+  // measured height instead, same pattern as Header.jsx's --header-h.
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const setVar = () => document.documentElement.style.setProperty("--nav-overlay-h", `${el.offsetHeight}px`);
+    setVar();
+    const observer = new ResizeObserver(setVar);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     api.listEvents({ status: "open" }).then(setEvents).catch(() => setEvents([]));
@@ -127,7 +142,7 @@ export default function Discover() {
             </button>
           </div>
 
-          <nav className={`map-nav-overlay${navOpen ? " is-open" : ""}`}>
+          <nav ref={navRef} className={`map-nav-overlay${navOpen ? " is-open" : ""}`}>
             {me && (
               <Link to="/events/new" className="btn btn-primary">
                 + Create Event
