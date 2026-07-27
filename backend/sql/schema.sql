@@ -132,7 +132,7 @@ CREATE TABLE announcements (
 CREATE TABLE weekly_prompts (
     prompt_id     SERIAL PRIMARY KEY,
     question_text TEXT NOT NULL,
-    week_start    DATE NOT NULL UNIQUE,
+    week_start    DATE NOT NULL UNIQUE,  -- Monday of the prompt week
     created_at    TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -142,6 +142,21 @@ CREATE TABLE prompt_responses (
     user_id         INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
     response_text   TEXT NOT NULL,
     created_at      TIMESTAMPTZ DEFAULT NOW(),
-    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     UNIQUE(user_id, prompt_id)
 );
+
+-- Trigger function is generic (any table with an updated_at column can reuse
+-- it); the trigger below wires it specifically to prompt_responses.
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER prompt_responses_update_timestamp
+BEFORE UPDATE ON prompt_responses
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();
