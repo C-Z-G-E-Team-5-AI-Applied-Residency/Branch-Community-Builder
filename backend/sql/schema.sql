@@ -127,3 +127,21 @@ CREATE TABLE announcements (
     message         TEXT NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-----------------------------------------------------------------------------
+CREATE TABLE weekly_prompts (
+    prompt_id     SERIAL PRIMARY KEY,
+    question_text TEXT NOT NULL,
+    week_start    DATE NOT NULL UNIQUE,
+    created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE prompt_responses (
+    response_id     SERIAL PRIMARY KEY,
+    prompt_id       INTEGER REFERENCES weekly_prompts(prompt_id) ON DELETE CASCADE,
+    user_id         INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
+    response_text   TEXT NOT NULL,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(user_id, prompt_id)
+);

@@ -7,9 +7,10 @@ from app.models.community_standing import CommunityStanding
 from app.models.tag import Tag, UserInterest, EventTag
 from app.models.recommendation import Recommendation
 from app.models.announcement import Announcement
+from app.models.prompt import WeeklyPrompt, PromptResponse
 
 __all__ = [
     "User", "Profile", "Event", "Rsvp", "Neighborhood",
     "CommunityStanding", "Tag", "UserInterest", "EventTag", "Recommendation",
-    "Announcement",
+    "Announcement", "WeeklyPrompt", "PromptResponse",
 ]
