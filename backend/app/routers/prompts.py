@@ -14,12 +14,15 @@ router = APIRouter(prefix="/api/prompts", tags=["prompts"])
 responses_router = APIRouter(prefix="/api/prompt-responses", tags=["prompts"])
 
 
-def _serialize_prompt(prompt: WeeklyPrompt, has_responded: bool) -> dict:
+def _serialize_prompt(prompt: WeeklyPrompt, my_response: PromptResponse | None) -> dict:
     return {
         "prompt_id": prompt.prompt_id,
         "question_text": prompt.question_text,
         "week_start": prompt.week_start,
-        "has_responded": has_responded,
+        "has_responded": my_response is not None,
+        # Lets a client PATCH its own response after a reload — GET .../responses
+        # deliberately doesn't carry response_id (see list_prompt_responses).
+        "my_response_id": my_response.response_id if my_response is not None else None,
     }
 
 
@@ -42,15 +45,25 @@ def _serialize_response(response: PromptResponse) -> dict:
     }
 
 
-def _has_responded(db: Session, user_id: int, prompt_id: int) -> bool:
-    return (
-        db.execute(
-            select(PromptResponse).where(
-                PromptResponse.user_id == user_id, PromptResponse.prompt_id == prompt_id
-            )
-        ).scalar_one_or_none()
-        is not None
-    )
+def _my_response(db: Session, user_id: int, prompt_id: int) -> PromptResponse | None:
+    return db.execute(
+        select(PromptResponse).where(
+            PromptResponse.user_id == user_id, PromptResponse.prompt_id == prompt_id
+        )
+    ).scalar_one_or_none()
+
+
+def _list_responses(db: Session, prompt_id: int) -> list[dict]:
+    rows = db.execute(
+        select(User.username, PromptResponse.response_text, PromptResponse.updated_at)
+        .join(User, User.user_id == PromptResponse.user_id)
+        .where(PromptResponse.prompt_id == prompt_id)
+        .order_by(PromptResponse.created_at.desc())
+    ).all()
+    return [
+        {"username": username, "response_text": response_text, "updated_at": updated_at}
+        for username, response_text, updated_at in rows
+    ]
 
 
 @router.get("/current")
@@ -60,12 +73,27 @@ def get_current_prompt(request: Request, db: Session = Depends(get_db)):
     prompt = prompts_service.get_or_create_current_prompt(db)
     db.commit()
     db.refresh(prompt)
-    return _serialize_prompt(prompt, _has_responded(db, user_id, prompt.prompt_id))
+    return _serialize_prompt(prompt, _my_response(db, user_id, prompt.prompt_id))
+
+
+@router.get("/current/responses")
+def get_current_prompt_responses(request: Request, db: Session = Depends(get_db)):
+    """Alias of /{prompt_id}/responses for this week's prompt, so the POST
+    endpoint below has a matching GET instead of 422ing on "current" as an
+    int. 200 / 401 / 403."""
+    user_id = require_user(request)
+    prompt = prompts_service.get_or_create_current_prompt(db)
+    db.commit()
+    db.refresh(prompt)
+    if _my_response(db, user_id, prompt.prompt_id) is None:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Answer this prompt to see others' responses")
+    return _list_responses(db, prompt.prompt_id)
 
 
 @router.get("")
-def list_prompts(db: Session = Depends(get_db)):
-    """Past prompts, newest-first. Current week excluded. 200."""
+def list_prompts(request: Request, db: Session = Depends(get_db)):
+    """Past prompts, newest-first. Current week excluded. 200 / 401."""
+    require_user(request)
     prompts = prompts_service.list_past_prompts(db)
     return [_serialize_past_prompt(p) for p in prompts]
 
@@ -80,7 +108,7 @@ def create_current_prompt_response(
     db.commit()
     db.refresh(prompt)
 
-    if _has_responded(db, user_id, prompt.prompt_id):
+    if _my_response(db, user_id, prompt.prompt_id) is not None:
         raise HTTPException(status.HTTP_409_CONFLICT, "Already responded to this prompt, use PATCH to edit")
 
     response = PromptResponse(prompt_id=prompt.prompt_id, user_id=user_id, response_text=body.response_text)
@@ -101,7 +129,7 @@ def get_prompt(prompt_id: int, request: Request, db: Session = Depends(get_db)):
     prompt = db.get(WeeklyPrompt, prompt_id)
     if prompt is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Prompt not found")
-    return _serialize_prompt(prompt, _has_responded(db, user_id, prompt.prompt_id))
+    return _serialize_prompt(prompt, _my_response(db, user_id, prompt_id))
 
 
 @router.get("/{prompt_id}/responses")
@@ -111,18 +139,9 @@ def list_prompt_responses(prompt_id: int, request: Request, db: Session = Depend
     prompt = db.get(WeeklyPrompt, prompt_id)
     if prompt is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Prompt not found")
-    if not _has_responded(db, user_id, prompt_id):
+    if _my_response(db, user_id, prompt_id) is None:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Answer this prompt to see others' responses")
-
-    rows = db.execute(
-        select(User.username, PromptResponse.response_text, PromptResponse.updated_at)
-        .join(User, User.user_id == PromptResponse.user_id)
-        .where(PromptResponse.prompt_id == prompt_id)
-    ).all()
-    return [
-        {"username": username, "response_text": response_text, "updated_at": updated_at}
-        for username, response_text, updated_at in rows
-    ]
+    return _list_responses(db, prompt_id)
 
 
 @responses_router.patch("/{response_id}")
