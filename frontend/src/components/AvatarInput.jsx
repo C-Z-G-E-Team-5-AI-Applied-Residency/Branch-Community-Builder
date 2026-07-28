@@ -76,14 +76,19 @@ export default function AvatarInput({ currentSrc = null, onChange }) {
   return (
     <div className="avatar-input">
       {displaySrc && <img className="avatar avatar-preview" src={displaySrc} alt="Profile preview" />}
-      <label>
-        Profile picture (optional)
+      <div className="file-field">
+        <span className="file-field-label">Profile picture (optional)</span>
+        <label htmlFor="avatar-file-input" className="btn">
+          Choose photo
+        </label>
         <input
+          id="avatar-file-input"
           type="file"
           accept="image/jpeg,image/png,image/webp,image/gif"
           onChange={onPick}
+          className="visually-hidden"
         />
-      </label>
+      </div>
       {preview && (
         <button type="button" onClick={onClear}>
           Discard new photo

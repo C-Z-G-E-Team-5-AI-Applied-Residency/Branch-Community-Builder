@@ -143,3 +143,20 @@ export const api = {
   refreshRecommendations: (userId) =>
     request(`/api/users/${userId}/recommendations/refresh`, { method: "POST" }),
 };
+
+// Same Nominatim service CreateEvent.jsx geocodes addresses through. Resolves
+// a ZIP to lat/lng, then reuses the API's point-in-boundary lookup (also used
+// by Discover's map) to find the neighborhood it falls in. Returns null on any
+// miss (no geocode match, no neighborhood at that point) so callers can fall
+// back to displaying the raw ZIP.
+const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
+
+export async function getNeighborhoodForZip(zip) {
+  const params = new URLSearchParams({ postalcode: zip, country: "us", format: "json", limit: "1" });
+  const res = await fetch(`${NOMINATIM_URL}?${params}`);
+  if (!res.ok) return null;
+  const [hit] = await res.json();
+  if (!hit) return null;
+  const neighborhoods = await api.listNeighborhoods({ lat: parseFloat(hit.lat), lng: parseFloat(hit.lon) });
+  return neighborhoods[0]?.name ?? null;
+}

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 from sqlalchemy import select, func
-from geoalchemy2 import Geometry
+from geoalchemy2 import Geography, Geometry
 from app.database import get_db
 from app.models.community_standing import CommunityStanding
 from app.models.neighborhood import Neighborhood
@@ -10,6 +10,14 @@ from app.schemas.neighborhood import NeighborhoodOut
 
 router = APIRouter(prefix="/api/neighborhoods", tags=["neighborhoods"])
 
+# Zillow's neighborhood polygons have gaps and don't line up with ZIP-code
+# centroids, so a point that's squarely "in" a neighborhood in the everyday
+# sense often still misses an exact ST_Contains — e.g. 11226 (Flatbush,
+# Brooklyn) geocodes ~1.2km outside the Flatbush polygon. Cap the nearest
+# fallback so a point nowhere near any seeded neighborhood (e.g. a ZIP outside
+# NY) still comes back empty instead of matching whatever's technically closest.
+NEARBY_METERS = 3200  # ~2 miles
+
 @router.get("", response_model=list[NeighborhoodOut])
 def list_neighborhoods(
     lat: float | None = None,
@@ -17,13 +25,23 @@ def list_neighborhoods(
     city: str | None = None,
     db: Session = Depends(get_db),
 ):
-    """All neighborhoods; ?lat&lng does a point-in-boundary lookup via ST_Contains. 200."""
+    """All neighborhoods; ?lat&lng does a point-in-boundary lookup via ST_Contains,
+    falling back to the nearest neighborhood within NEARBY_METERS if none contain
+    the point. 200."""
     query = select(Neighborhood)
     if city is not None:
         query = query.where(Neighborhood.city == city)
     if lat is not None and lng is not None:
         point = func.ST_SetSRID(func.ST_MakePoint(lng, lat), 4326)
-        query = query.where(func.ST_Contains(func.cast(Neighborhood.boundary, Geometry), point))
+        neighborhoods = db.execute(
+            query.where(func.ST_Contains(func.cast(Neighborhood.boundary, Geometry), point))
+        ).scalars().all()
+        if not neighborhoods:
+            distance = func.ST_Distance(Neighborhood.boundary, func.cast(point, Geography))
+            neighborhoods = db.execute(
+                query.where(distance <= NEARBY_METERS).order_by(distance).limit(1)
+            ).scalars().all()
+        return neighborhoods
     neighborhoods = db.execute(query).scalars().all()
     return neighborhoods
 
