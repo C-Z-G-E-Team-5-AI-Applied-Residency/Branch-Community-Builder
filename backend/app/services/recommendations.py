@@ -14,7 +14,7 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-3.1-flash-lite"
 
 # The .env.example placeholder — treat it the same as "no key configured".
 _PLACEHOLDER_KEY = "your-gemini-api-key"
