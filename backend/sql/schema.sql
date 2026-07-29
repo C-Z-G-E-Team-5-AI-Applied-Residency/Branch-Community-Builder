@@ -21,7 +21,8 @@ CREATE TABLE profiles (
     picture_mime    TEXT,
     bio             TEXT NOT NULL,
     user_id         INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
-    home_zip_code   TEXT NOT NULL
+    home_zip_code   TEXT NOT NULL,
+    intent          TEXT             -- free-text "what I want to do offline" (matchmaking)
 );
 
 -- ---------------------------------------------------------------------------
@@ -45,7 +46,11 @@ CREATE TABLE events (
     check_in_code   TEXT,
     flyer_url       TEXT,            -- template asset path, or /api/events/{id}/flyer once uploaded
     flyer_data      BYTEA,           -- uploaded flyer bytes (served at /api/events/{id}/flyer)
-    flyer_mime      TEXT
+    flyer_mime      TEXT,
+    why             TEXT,            -- host's stated purpose (matchmaking + guardrail)
+    review_status   TEXT NOT NULL DEFAULT 'approved',  -- 'approved' | 'pending' | 'rejected'
+    review_summary  TEXT,            -- AI one-line summary shown on the review card
+    review_reason   TEXT             -- AI "why it was flagged" (+ any human note)
 );
 CREATE INDEX events_geo_idx ON events USING GIST (geo);
 
@@ -84,8 +89,11 @@ CREATE TABLE community_standing (
 
 -- ---------------------------------------------------------------------------
 CREATE TABLE tags (
-    tag_id SERIAL PRIMARY KEY,
-    name   TEXT UNIQUE NOT NULL
+    tag_id              SERIAL PRIMARY KEY,
+    name                TEXT UNIQUE NOT NULL,
+    status              TEXT NOT NULL DEFAULT 'approved',  -- 'approved' | 'pending' (emergent tags)
+    created_by_event_id INTEGER REFERENCES events(event_id) ON DELETE SET NULL,  -- provenance
+    usage_count         INTEGER NOT NULL DEFAULT 0         -- rank/merge/prune the taxonomy
 );
 
 INSERT INTO tags (name) VALUES
