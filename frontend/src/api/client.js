@@ -151,6 +151,33 @@ export const api = {
 // back to displaying the raw ZIP.
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 
+// Community Standing page support: for each event a user hosts, resolves
+// which neighborhood it falls in (same point-in-boundary lookup
+// getNeighborhoodForZip uses, but from the event's own lat/lng) and how many
+// attendees have confirmed ("going") — getUserStandings only has the
+// aggregate hosted/attended totals, not this per-event breakdown.
+export async function getHostedEventBreakdown(userId) {
+  const events = await api.listEvents();
+  const hosted = events.filter((e) => e.host_id === Number(userId));
+  return Promise.all(
+    hosted.map(async (event) => {
+      const [neighborhoods, rsvps] = await Promise.all([
+        event.latitude != null && event.longitude != null
+          ? api.listNeighborhoods({ lat: event.latitude, lng: event.longitude })
+          : Promise.resolve([]),
+        api.getEventRsvps(event.event_id, { status: "going" }),
+      ]);
+      return {
+        event_id: event.event_id,
+        title: event.title,
+        event_date: event.event_date,
+        neighborhood_id: neighborhoods[0]?.neighborhood_id ?? null,
+        confirmed_count: rsvps.length,
+      };
+    })
+  );
+}
+
 export async function getNeighborhoodForZip(zip) {
   const params = new URLSearchParams({ postalcode: zip, country: "us", format: "json", limit: "1" });
   const res = await fetch(`${NOMINATIM_URL}?${params}`);
