@@ -46,6 +46,7 @@ export default function SignUp() {
 
   const [tags, setTags] = useState([]);
   const [picked, setPicked] = useState([]);
+  const [intent, setIntent] = useState("");
 
   useEffect(() => {
     if (step === "interests") api.listTags().then(setTags).catch(() => setTags([]));
@@ -111,6 +112,9 @@ export default function SignUp() {
     try {
       for (const tagId of picked) {
         await api.addInterest(user.user_id, tagId);
+      }
+      if (intent.trim()) {
+        await api.updateProfile(user.user_id, { intent: intent.trim() });
       }
       navigate("/discover");
     } catch (err) {
@@ -213,6 +217,16 @@ export default function SignUp() {
       {step === "interests" && (
         <div>
           <h2>What are you into?</h2>
+          <label style={{ display: "block", marginBottom: "1rem" }}>
+            What do you want to do more of, offline?
+            <textarea
+              value={intent}
+              onChange={(e) => setIntent(e.target.value)}
+              placeholder="e.g. meet people who like hiking, find a weekly study group, just get out of the house more"
+              style={{ display: "block", width: "100%" }}
+            />
+            <small>Optional — but it helps the matchmaker find events you'll actually show up to.</small>
+          </label>
           {tags.map((tag) => (
             <label key={tag.tag_id} style={{ marginRight: "1rem" }}>
               <input
