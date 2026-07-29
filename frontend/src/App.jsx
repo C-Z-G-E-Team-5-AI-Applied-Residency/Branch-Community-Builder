@@ -10,7 +10,6 @@ import RSVPs from "./pages/RSVPs.jsx";
 import CreateEvent from "./pages/CreateEvent.jsx";
 import EventDetail from "./pages/EventDetail.jsx";
 import Profile from "./pages/Profile.jsx";
-import CommunityStanding from "./pages/CommunityStanding.jsx";
 import HostCheckIn from "./pages/HostCheckIn.jsx";
 
 // Everything except sign-in/sign-up requires a signed-in user; visitors
@@ -35,10 +34,6 @@ export default function App() {
         <Route path="/events/:eventId" element={<RequireAuth><EventDetail /></RequireAuth>} />
         <Route path="/events/:eventId/host" element={<RequireAuth><HostCheckIn /></RequireAuth>} />
         <Route path="/profile/:userId" element={<RequireAuth><Profile /></RequireAuth>} />
-        <Route
-          path="/profile/:userId/standing"
-          element={<RequireAuth><CommunityStanding /></RequireAuth>}
-        />
       </Routes>
       <Footer />
     </>
