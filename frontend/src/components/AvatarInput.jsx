@@ -1,7 +1,7 @@
 // Avatar picker with in-app circular crop: choose a file, adjust the crop in
 // a dialog, and the parent gets back a square PNG File ready for the existing
 // upload endpoint. Used by sign-up onboarding and profile edit.
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import Cropper from "react-easy-crop";
 
 const OUTPUT_SIZE = 512; // square px — a 512² PNG stays well under the 2 MB cap
@@ -29,6 +29,7 @@ async function cropToFile(src, area) {
 }
 
 export default function AvatarInput({ currentSrc = null, onChange }) {
+  const inputId = useId();
   const [rawSrc, setRawSrc] = useState(null); // object URL being cropped
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -78,11 +79,11 @@ export default function AvatarInput({ currentSrc = null, onChange }) {
       {displaySrc && <img className="avatar avatar-preview" src={displaySrc} alt="Profile preview" />}
       <div className="file-field">
         <span className="file-field-label">Profile picture (optional)</span>
-        <label htmlFor="avatar-file-input" className="btn">
+        <label htmlFor={inputId} className="btn">
           Choose photo
         </label>
         <input
-          id="avatar-file-input"
+          id={inputId}
           type="file"
           accept="image/jpeg,image/png,image/webp,image/gif"
           onChange={onPick}

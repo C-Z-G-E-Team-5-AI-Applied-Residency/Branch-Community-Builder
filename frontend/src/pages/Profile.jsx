@@ -2,7 +2,7 @@
 // Hosted events and RSVPs live only on the dedicated /events and /rsvps
 // pages (reached via the map's nav overlay) — not duplicated here.
 import { useCallback, useEffect, useState } from "react";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { api, apiUrl, getNeighborhoodForZip } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import AvatarInput from "../components/AvatarInput.jsx";
@@ -18,7 +18,6 @@ export default function Profile() {
 
   const [profile, setProfile] = useState(null);
   const [neighborhoodName, setNeighborhoodName] = useState(null);
-  const [standings, setStandings] = useState([]);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ display_name: "", bio: "", home_zip_code: "" });
   const [pictureFile, setPictureFile] = useState(null);
@@ -41,7 +40,6 @@ export default function Profile() {
         if (err.status === 404) setNoProfile(true);
         else setError(err.message);
       });
-    api.getUserStandings(userId).then(setStandings).catch(() => setStandings([]));
   }, [userId]);
 
   useEffect(load, [load]);
@@ -164,7 +162,11 @@ export default function Profile() {
       ) : (
         <>
           <p>{profile.bio}</p>
-          <p>Neighborhood: {neighborhoodName ?? profile.home_zip_code}</p>
+          <p>
+            {neighborhoodName
+              ? `Neighborhood: ${neighborhoodName}`
+              : `Home ZIP: ${profile.home_zip_code}`}
+          </p>
           {isOwn && (
             <>
               <button onClick={() => setEditing(true)}>Edit profile</button>{" "}
@@ -178,31 +180,21 @@ export default function Profile() {
 
       <h2>Interests</h2>
       {profile.interests.length ? (
-        <div className="chip-list">
+        <ul className="chip-list">
           {profile.interests.map((tag) => (
-            <span key={tag.tag_id} className="chip">
+            <li key={tag.tag_id} className="chip">
               {tag.name}
-            </span>
+            </li>
           ))}
-        </div>
+        </ul>
       ) : (
         <p>No interests yet.</p>
       )}
 
       <h2>Community standing</h2>
-      {standings.length ? (
-        <ul>
-          {standings.map((s) => (
-            <li key={s.standing_id}>
-              {s.neighborhood_name} ({s.city}): hosted {s.events_hosted}, attended{" "}
-              {s.events_attended}
-              {s.is_leader && " · 🌿 leader"}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>No community activity yet.</p>
-      )}
+      <p>
+        <Link to={`/profile/${userId}/standing`}>View Community Standing →</Link>
+      </p>
 
       {isOwn && (
         <p>
