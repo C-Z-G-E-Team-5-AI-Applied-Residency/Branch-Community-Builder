@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -10,6 +11,7 @@ from app.models.event import Event
 from app.models.neighborhood import Neighborhood
 from app.models.profile import Profile
 from app.models.recommendation import Recommendation
+from app.models.recommendation_log import RecommendationLog
 from app.models.rsvp import Rsvp
 from app.models.tag import EventTag, Tag, UserInterest
 from app.models.user import User
@@ -253,6 +255,15 @@ def refresh_user_recommendations(user_id: int, request: Request, db: Session = D
             continue  # drop hallucinated or duplicate event ids
         seen.add(event_id)
         db.add(Recommendation(user_id=user_id, event_id=event_id, reason=item["reason"]))
+
+    # Also append to the permanent log (first time only) so we can measure
+    # recommendation -> check-in conversion even after the cache is overwritten.
+    if seen:
+        db.execute(
+            pg_insert(RecommendationLog)
+            .values([{"user_id": user_id, "event_id": eid} for eid in seen])
+            .on_conflict_do_nothing(index_elements=["user_id", "event_id"])
+        )
     db.commit()
 
     return _serialize_recommendations(db, user_id)

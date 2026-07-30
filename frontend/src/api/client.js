@@ -151,6 +151,8 @@ export const api = {
   listPendingReview: () => request("/api/events/pending-review"),
   reviewEvent: (eventId, decision, note) =>
     request(`/api/events/${eventId}/review`, { method: "PATCH", body: { decision, note } }),
+  // metrics (admin only)
+  getRecommendationConversion: () => request("/api/metrics/recommendation-conversion"),
 };
 
 // Same Nominatim service CreateEvent.jsx geocodes addresses through. Resolves

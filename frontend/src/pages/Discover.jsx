@@ -159,6 +159,7 @@ export default function Discover() {
             {me && <Link to="/rsvps">My RSVPs</Link>}
             {me && <Link to={`/profile/${me.user_id}`}>Profile</Link>}
             {isAdmin && <Link to="/review">Review</Link>}
+            {isAdmin && <Link to="/metrics">Metrics</Link>}
           </nav>
 
           <div className={`map-search-overlay${searchOpen ? " is-open" : ""}`}>

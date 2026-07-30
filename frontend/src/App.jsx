@@ -12,6 +12,7 @@ import EventDetail from "./pages/EventDetail.jsx";
 import Profile from "./pages/Profile.jsx";
 import HostCheckIn from "./pages/HostCheckIn.jsx";
 import Review from "./pages/Review.jsx";
+import Metrics from "./pages/Metrics.jsx";
 
 // Everything except sign-in/sign-up requires a signed-in user; visitors
 // without a session land on the sign-in page.
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/profile/:userId" element={<RequireAuth><Profile /></RequireAuth>} />
         {/* Admin-gated server-side (403 for non-admins); the nav link is also admin-only. */}
         <Route path="/review" element={<RequireAuth><Review /></RequireAuth>} />
+        <Route path="/metrics" element={<RequireAuth><Metrics /></RequireAuth>} />
       </Routes>
       <Footer />
     </>
