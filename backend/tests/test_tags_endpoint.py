@@ -119,7 +119,7 @@ def test_suggest_requires_auth_and_returns_suggestions(db_isolation, monkeypatch
     assert r.json()["suggestions"] == [{"name": "hiking", "is_new": True}]
 
 
-def test_pending_tag_hidden_from_public_but_shown_to_host(db_isolation):
+def test_pending_tag_hidden_from_public_but_shown_to_host(db_isolation, admin_email):
     host = _signup()
     ev = _make_event(host, tag_names=["music", "brand new theme"]).json()  # approved seed + fresh pending
     eid = ev["event_id"]
@@ -138,6 +138,10 @@ def test_pending_tag_hidden_from_public_but_shown_to_host(db_isolation):
 
     # the host still sees it on their own event detail
     assert "brand new theme" in _names(host.get(f"/api/events/{eid}").json())
+
+    # an admin sees pending tags on any event's detail page, not just via the queue
+    admin = _signup(email=admin_email)
+    assert "brand new theme" in _names(admin.get(f"/api/events/{eid}").json())
 
 
 def test_cannot_delete_approved_tag(db_isolation, admin_email):
