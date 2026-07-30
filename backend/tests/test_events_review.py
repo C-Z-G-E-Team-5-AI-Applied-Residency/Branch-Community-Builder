@@ -3,8 +3,9 @@ approve/reject flow, and edit-time re-checking.
 
 Moderation is stubbed (no live Gemini) so the tests are hermetic and deterministic.
 They DO require the app's Postgres database to be reachable — they exercise the real
-routers/DB via TestClient, then clean up by deleting the users they create (events
-cascade off the user FK).
+routers/DB via TestClient. Isolation comes from the `db_isolation` fixture (see
+conftest.py): each test runs in a transaction that is rolled back at teardown, so
+nothing is committed to the database regardless of pass/fail.
 """
 import uuid
 
@@ -40,10 +41,9 @@ def admin_email(monkeypatch):
 
 
 @pytest.fixture
-def users():
-    """Factory for signed-in TestClients; deletes every created account at teardown
-    (their events cascade away with them)."""
-    created = []
+def users(db_isolation):
+    """Factory for signed-in TestClients. No manual cleanup needed — everything
+    these clients write is rolled back by db_isolation at the end of the test."""
 
     def make(email=None):
         c = TestClient(app)
@@ -53,12 +53,9 @@ def users():
             json={"email": email, "username": email.split("@")[0], "password": "password123"},
         )
         assert r.status_code == 201, r.text
-        created.append((c, r.json()["user_id"]))
         return c
 
-    yield make
-    for c, uid in created:
-        c.delete(f"/api/users/{uid}")
+    return make
 
 
 _EVENT_BASE = {
