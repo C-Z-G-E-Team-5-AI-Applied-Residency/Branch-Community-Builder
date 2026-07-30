@@ -3,7 +3,7 @@
 // pages (reached via the map's nav overlay) — not duplicated here.
 import { useCallback, useEffect, useState } from "react";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
-import { api, apiUrl } from "../api/client.js";
+import { api, apiUrl, getNeighborhoodForZip } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import AvatarInput from "../components/AvatarInput.jsx";
 import LeaderBadge from "../components/LeaderBadge.jsx";
@@ -17,6 +17,7 @@ export default function Profile() {
   const isOwn = me && me.user_id === Number(userId);
 
   const [profile, setProfile] = useState(null);
+  const [neighborhoodName, setNeighborhoodName] = useState(null);
   const [standings, setStandings] = useState([]);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ display_name: "", bio: "", home_zip_code: "" });
@@ -44,6 +45,23 @@ export default function Profile() {
   }, [userId]);
 
   useEffect(load, [load]);
+
+  // Resolves in the background; the raw ZIP still renders below until this
+  // lands, and stays put if the lookup comes up empty (no geocode match, or
+  // the point falls outside every neighborhood boundary we have).
+  useEffect(() => {
+    if (!profile) return;
+    let cancelled = false;
+    setNeighborhoodName(null);
+    getNeighborhoodForZip(profile.home_zip_code)
+      .then((name) => {
+        if (!cancelled) setNeighborhoodName(name);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.home_zip_code]);
 
   if (noProfile && isOwn) return <Navigate to="/signup?step=profile" replace />;
   if (noProfile) return <main><h1>Profile</h1><p>This user hasn't finished setting up their profile yet.</p></main>;
@@ -121,7 +139,7 @@ export default function Profile() {
             </button>
           )}
           <label>
-            Display name
+            Display Name
             <input value={form.display_name} onChange={set("display_name")} required />
           </label>
           <label>
@@ -146,7 +164,11 @@ export default function Profile() {
       ) : (
         <>
           <p>{profile.bio}</p>
-          <p>Home ZIP: {profile.home_zip_code}</p>
+          <p>
+            {neighborhoodName
+              ? `Neighborhood: ${neighborhoodName}`
+              : `Home ZIP: ${profile.home_zip_code}`}
+          </p>
           {isOwn && (
             <>
               <button onClick={() => setEditing(true)}>Edit profile</button>{" "}
@@ -160,9 +182,11 @@ export default function Profile() {
 
       <h2>Interests</h2>
       {profile.interests.length ? (
-        <ul>
+        <ul className="chip-list">
           {profile.interests.map((tag) => (
-            <li key={tag.tag_id}>{tag.name}</li>
+            <li key={tag.tag_id} className="chip">
+              {tag.name}
+            </li>
           ))}
         </ul>
       ) : (
