@@ -150,6 +150,24 @@ def test_approve_makes_event_public(admin_email, users):
     assert bad["event_id"] in anon_ids
 
 
+def test_reject_keeps_event_hidden_and_appends_moderator_note(admin_email, users):
+    host = users()
+    bad = make_event(host, "Crypto Course", "join my paid webinar")
+    admin = users(email=admin_email)
+
+    r = admin.patch(
+        f"/api/events/{bad['event_id']}/review",
+        json={"decision": "reject", "note": "clear spam"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["review_status"] == "rejected"
+    assert "clear spam" in (body["review_reason"] or "")  # human note appended, AI reason kept
+    # a rejected event stays out of the public listing
+    anon_ids = {e["event_id"] for e in TestClient(app).get("/api/events").json()}
+    assert bad["event_id"] not in anon_ids
+
+
 def test_editing_approved_into_offmission_reholds_it(users):
     host = users()
     good = make_event(host, "Book Club", "read together")
