@@ -3,8 +3,9 @@ approve/reject flow, and edit-time re-checking.
 
 Moderation is stubbed (no live Gemini) so the tests are hermetic and deterministic.
 They DO require the app's Postgres database to be reachable — they exercise the real
-routers/DB via TestClient, then clean up by deleting the users they create (events
-cascade off the user FK).
+routers/DB via TestClient. Isolation comes from the `db_isolation` fixture (see
+conftest.py): each test runs in a transaction that is rolled back at teardown, so
+nothing is committed to the database regardless of pass/fail.
 """
 import uuid
 
@@ -40,10 +41,9 @@ def admin_email(monkeypatch):
 
 
 @pytest.fixture
-def users():
-    """Factory for signed-in TestClients; deletes every created account at teardown
-    (their events cascade away with them)."""
-    created = []
+def users(db_isolation):
+    """Factory for signed-in TestClients. No manual cleanup needed — everything
+    these clients write is rolled back by db_isolation at the end of the test."""
 
     def make(email=None):
         c = TestClient(app)
@@ -53,12 +53,9 @@ def users():
             json={"email": email, "username": email.split("@")[0], "password": "password123"},
         )
         assert r.status_code == 201, r.text
-        created.append((c, r.json()["user_id"]))
         return c
 
-    yield make
-    for c, uid in created:
-        c.delete(f"/api/users/{uid}")
+    return make
 
 
 _EVENT_BASE = {
@@ -151,6 +148,24 @@ def test_approve_makes_event_public(admin_email, users):
     assert r.json()["review_status"] == "approved"
     anon_ids = {e["event_id"] for e in TestClient(app).get("/api/events").json()}
     assert bad["event_id"] in anon_ids
+
+
+def test_reject_keeps_event_hidden_and_appends_moderator_note(admin_email, users):
+    host = users()
+    bad = make_event(host, "Crypto Course", "join my paid webinar")
+    admin = users(email=admin_email)
+
+    r = admin.patch(
+        f"/api/events/{bad['event_id']}/review",
+        json={"decision": "reject", "note": "clear spam"},
+    )
+    assert r.status_code == 200
+    body = r.json()
+    assert body["review_status"] == "rejected"
+    assert "clear spam" in (body["review_reason"] or "")  # human note appended, AI reason kept
+    # a rejected event stays out of the public listing
+    anon_ids = {e["event_id"] for e in TestClient(app).get("/api/events").json()}
+    assert bad["event_id"] not in anon_ids
 
 
 def test_editing_approved_into_offmission_reholds_it(users):

@@ -42,7 +42,16 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env          # fill in DATABASE_URL, GEMINI_API_KEY, SESSION_SECRET
 uvicorn app.main:app --reload # http://localhost:8000  (docs at /docs)
+
+# Tests
+pytest                        # from backend/, with the venv active
 ```
+
+Notes on the tests: unit tests (`test_moderation.py`, `test_recommendations.py`) need
+nothing external. The endpoint tests (`test_events_review.py`) drive the app against the
+database in `DATABASE_URL`, but each test runs inside a transaction that is **rolled back**
+at the end (see `tests/conftest.py`'s `db_isolation` fixture), so they never commit rows —
+you can safely point them at your dev database. They don't call Gemini (moderation is stubbed).
 
 ### 3. Frontend
 ```bash

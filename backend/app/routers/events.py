@@ -146,11 +146,15 @@ def get_event(event_id: int, request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
     viewer_id = current_user_id(request)
     is_host = viewer_id == event.host_id
-    viewer = db.get(User, viewer_id) if viewer_id else None
-    is_admin = bool(viewer and is_admin_email(viewer.email))
-    if event.review_status != "approved" and not (is_host or is_admin):
-        # Don't reveal existence of held/rejected events to other users.
-        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    is_admin = False
+    # Only the held/rejected + non-host case needs the admin check, so skip the
+    # extra user lookup on the common approved-event path.
+    if event.review_status != "approved" and not is_host:
+        viewer = db.get(User, viewer_id) if viewer_id else None
+        is_admin = bool(viewer and is_admin_email(viewer.email))
+        if not is_admin:
+            # Don't reveal existence of held/rejected events to other users.
+            raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
     tags_by_event = _tags_by_event(db, [event_id])
     return _serialize_event(
         event, tags_by_event.get(event_id, []), include_check_in_code=is_host, include_review=is_host or is_admin
