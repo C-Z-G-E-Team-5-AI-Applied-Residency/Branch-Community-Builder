@@ -117,3 +117,30 @@ def test_suggest_requires_auth_and_returns_suggestions(db_isolation, monkeypatch
     r = _signup().post("/api/tags/suggest", json={"title": "Sunrise Hike", "description": "trail", "why": "meet"})
     assert r.status_code == 200
     assert r.json()["suggestions"] == [{"name": "hiking", "is_new": True}]
+
+
+def test_pending_tag_hidden_from_public_but_shown_to_host(db_isolation):
+    host = _signup()
+    ev = _make_event(host, tag_names=["music", "brand new theme"]).json()  # approved seed + fresh pending
+    eid = ev["event_id"]
+    # create response (to the host) shows both
+    assert {"music", "brand new theme"} <= _names(ev)
+
+    anon = TestClient(app)
+    # public event detail, public listing, and public /tags all hide the pending tag
+    assert _names(anon.get(f"/api/events/{eid}").json()) == {"music"}
+    listed = next(e for e in anon.get("/api/events").json() if e["event_id"] == eid)
+    assert "brand new theme" not in {t["name"] for t in listed["tags"]}
+    assert {t["name"] for t in anon.get(f"/api/events/{eid}/tags").json()} == {"music"}
+
+    # another signed-in, non-host user also can't see it
+    assert "brand new theme" not in _names(_signup().get(f"/api/events/{eid}").json())
+
+    # the host still sees it on their own event detail
+    assert "brand new theme" in _names(host.get(f"/api/events/{eid}").json())
+
+
+def test_cannot_delete_approved_tag(db_isolation, admin_email):
+    admin = _signup(email=admin_email)
+    approved_tid = TestClient(app).get("/api/tags").json()[0]["tag_id"]  # a seed (approved) tag
+    assert admin.delete(f"/api/tags/{approved_tid}").status_code == 409  # must un-approve first

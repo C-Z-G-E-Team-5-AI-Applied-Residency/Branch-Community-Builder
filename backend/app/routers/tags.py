@@ -71,9 +71,16 @@ def update_tag(tag_id: int, body: TagUpdate, admin_id: int = Depends(require_adm
 
 @router.delete("/{tag_id}", status_code=204)
 def delete_tag(tag_id: int, admin_id: int = Depends(require_admin), db: Session = Depends(get_db)):
-    """Reject/remove a tag (cascades to event_tags/user_interests). Admin only. 204 / 403 / 404."""
+    """Reject/remove a *pending* tag (cascades to event_tags). Admin only. 204 / 403 / 404 / 409.
+
+    Only pending tags can be deleted, so an approved, in-use tag can't be nuked by a stray
+    click. To remove an approved tag, un-approve it first (PATCH status='pending')."""
     tag = db.get(Tag, tag_id)
     if tag is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Tag not found")
+    if tag.status != "pending":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT, "Only pending tags can be deleted; un-approve it first"
+        )
     db.delete(tag)
     db.commit()
