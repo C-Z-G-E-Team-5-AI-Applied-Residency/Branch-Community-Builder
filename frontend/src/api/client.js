@@ -142,6 +142,11 @@ export const api = {
   getRecommendations: (userId) => request(`/api/users/${userId}/recommendations`),
   refreshRecommendations: (userId) =>
     request(`/api/users/${userId}/recommendations/refresh`, { method: "POST" }),
+  // moderation (admins only, except is-admin which any signed-in user may call)
+  getIsAdmin: () => request("/api/me/is-admin"),
+  listPendingReview: () => request("/api/events/pending-review"),
+  reviewEvent: (eventId, decision, note) =>
+    request(`/api/events/${eventId}/review`, { method: "PATCH", body: { decision, note } }),
 };
 
 // Same Nominatim service CreateEvent.jsx geocodes addresses through. Resolves
