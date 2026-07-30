@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
-from app.routers import auth, users, profiles, events, rsvps, neighborhoods, tags, prompts, me
+from app.routers import auth, users, profiles, events, rsvps, neighborhoods, tags, prompts, me, metrics
 
 app = FastAPI(title="BRANCH API", version="0.1.0")
 
@@ -35,6 +35,7 @@ app.include_router(tags.router)
 app.include_router(prompts.router)
 app.include_router(prompts.responses_router)
 app.include_router(me.router)
+app.include_router(metrics.router)
 
 
 @app.get("/health")

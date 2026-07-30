@@ -128,6 +128,17 @@ CREATE TABLE recommendations (
 );
 
 -----------------------------------------------------------------------------
+-- Append-only history of recommendations (the table above is a cache), used to
+-- measure recommendation -> RSVP -> check-in conversion over time.
+CREATE TABLE recommendation_log (
+    id             SERIAL PRIMARY KEY,
+    user_id        INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    event_id       INTEGER NOT NULL REFERENCES events(event_id) ON DELETE CASCADE,
+    recommended_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, event_id)  -- one row per (user, event) ever recommended
+);
+
+-----------------------------------------------------------------------------
 CREATE TABLE announcements (
     announcement_id SERIAL PRIMARY KEY,
     event_id        INTEGER NOT NULL REFERENCES events(event_id) ON DELETE CASCADE,
