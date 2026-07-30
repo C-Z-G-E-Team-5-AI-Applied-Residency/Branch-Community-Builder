@@ -9,12 +9,15 @@ class ProfileCreate(BaseModel):
     display_name: str
     bio: str
     home_zip_code: str
+    # free-text "what I want to do offline"; fed to the AI matchmaker
+    intent: str | None = None
 
 
 class ProfileUpdate(BaseModel):
     display_name: str | None = None
     bio: str | None = None
     home_zip_code: str | None = None
+    intent: str | None = None
 
 
 class ProfileOut(BaseModel):
@@ -24,6 +27,7 @@ class ProfileOut(BaseModel):
     bio: str
     home_zip_code: str
     user_id: int
+    intent: str | None = None
     interests: list[TagOut] = []
 
     class Config:

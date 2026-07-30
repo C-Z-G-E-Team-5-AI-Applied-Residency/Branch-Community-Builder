@@ -30,6 +30,7 @@ export default function CreateEvent() {
     location: "",
     event_zip_code: "",
     event_description: "",
+    why: "",
     event_capacity: 10,
     event_image_url: "/images/default_event.png",
   });
@@ -171,6 +172,15 @@ export default function CreateEvent() {
         <label>
           Description
           <textarea value={form.event_description} onChange={set("event_description")} required />
+        </label>
+        <label>
+          Why this event?
+          <textarea
+            value={form.why}
+            onChange={set("why")}
+            placeholder="What's the point — the connection or experience you want people to have? (e.g. a low-key way for new grads to meet people who also just moved here)"
+          />
+          <small>The matchmaker uses this to recommend your event to the right people.</small>
         </label>
         <label>
           Capacity

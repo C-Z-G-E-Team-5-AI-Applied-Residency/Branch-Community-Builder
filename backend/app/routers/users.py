@@ -8,6 +8,7 @@ from app.database import get_db
 from app.models.community_standing import CommunityStanding
 from app.models.event import Event
 from app.models.neighborhood import Neighborhood
+from app.models.profile import Profile
 from app.models.recommendation import Recommendation
 from app.models.rsvp import Rsvp
 from app.models.tag import EventTag, Tag, UserInterest
@@ -205,6 +206,11 @@ def refresh_user_recommendations(user_id: int, request: Request, db: Session = D
         .where(UserInterest.user_id == user_id)
     ).scalars().all()
 
+    # The user's free-text "why" (intent), weighed alongside interest tags.
+    intent = db.execute(
+        select(Profile.intent).where(Profile.user_id == user_id)
+    ).scalar_one_or_none()
+
     # Candidate pool: upcoming open events (not the user's own).
     # TODO(review): no geographic filter yet — consider radius around the
     # user's home zip once zip geocoding is available.
@@ -229,12 +235,13 @@ def refresh_user_recommendations(user_id: int, request: Request, db: Session = D
             "event_id": e.event_id,
             "title": e.title,
             "event_description": e.event_description,
+            "why": e.why,
             "tags": tags_by_event.get(e.event_id, []),
         }
         for e in events
     ]
 
-    results = generate_recommendations(list(interests), candidates)
+    results = generate_recommendations(list(interests), candidates, intent=intent)
 
     # Overwrite cache: delete-then-insert, honoring UNIQUE(user_id, event_id).
     valid_ids = {e.event_id for e in events}

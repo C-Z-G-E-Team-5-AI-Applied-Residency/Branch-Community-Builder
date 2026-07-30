@@ -41,7 +41,7 @@ bcrypt, and on login/signup the backend sets `request.session["user_id"]`. Starl
 `SessionMiddleware` (in `main.py`) transparently signs that into a cookie. The frontend must send
 `credentials: "include"` on every fetch for this to work — and it does, in `api/client.js`.
 
-**AI integration** (`backend/app/services/recommendations.py`) calls Gemini (`gemini-2.5-flash`
+**AI integration** (`backend/app/services/recommendations.py`) calls Gemini (`gemini-3.1-flash-lite`
 via the `google-genai` SDK), feeding it the user's interest tags + nearby events, and forces a
 structured JSON response (`[{eventId, reason}]`) that gets cached in a `recommendations` table.
 

@@ -583,8 +583,8 @@ This project will make use of the following technologies, 3rd-Party APIs, and ne
   - Endpoint: `GET https://nominatim.openstreetmap.org/search?q={address}&format=json&limit=1`
   - Values used: `lat` and `lon` from the first result, stored as `events.latitude` and `events.longitude` (which in turn generate `events.geo`).
 - **Google Gemini API** — powers the AI Event Matchmaker.
-  - Endpoint: `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`
-  - Model: `gemini-2.5-flash` (free tier; fast and sufficient for ranking events)
+  - Endpoint: `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent`
+  - Model: `gemini-3.1-flash-lite` (free tier; higher free daily request quota than 2.5 Flash, fast and sufficient for ranking events)
   - Values sent: the user's interest tags + a list of nearby events. The request sets `generationConfig.responseMimeType: "application/json"` (and optionally a `responseSchema`) so the model returns a structured array of `{ "eventId", "reason" }`. Called from `POST /api/users/:user_id/recommendations/refresh`, with results written to the `recommendations` table.
 
 **Libraries**

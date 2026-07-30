@@ -61,6 +61,7 @@ def _serialize_event(event: Event, tags: list[dict], *, include_check_in_code: b
         "event_zip_code": event.event_zip_code,
         "event_description": event.event_description,
         "event_capacity": event.event_capacity,
+        "why": event.why,
         "status": event.status,
         "host_id": event.host_id,
         "event_image_url": event.event_image_url,
@@ -135,6 +136,7 @@ def create_event(body: EventCreate, request: Request, db: Session = Depends(get_
         event_image_url=body.event_image_url,
         latitude=body.latitude,
         longitude=body.longitude,
+        why=body.why,
         check_in_code=secrets.token_urlsafe(12),
     )
     db.add(event)

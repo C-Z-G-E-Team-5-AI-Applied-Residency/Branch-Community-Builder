@@ -20,7 +20,7 @@ export default function Profile() {
   const [neighborhoodName, setNeighborhoodName] = useState(null);
   const [standings, setStandings] = useState([]);
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ display_name: "", bio: "", home_zip_code: "" });
+  const [form, setForm] = useState({ display_name: "", bio: "", home_zip_code: "", intent: "" });
   const [pictureFile, setPictureFile] = useState(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteChecked, setDeleteChecked] = useState(false);
@@ -32,7 +32,12 @@ export default function Profile() {
       .getProfile(userId)
       .then((p) => {
         setProfile(p);
-        setForm({ display_name: p.display_name, bio: p.bio, home_zip_code: p.home_zip_code });
+        setForm({
+          display_name: p.display_name,
+          bio: p.bio,
+          home_zip_code: p.home_zip_code,
+          intent: p.intent ?? "",
+        });
       })
       .catch((err) => {
         // Reachable if onboarding was abandoned right after account creation
@@ -150,6 +155,15 @@ export default function Profile() {
             Home ZIP
             <input value={form.home_zip_code} onChange={set("home_zip_code")} pattern="\d{5}" required />
           </label>
+          <label>
+            What do you want to do more of, offline?
+            <textarea
+              value={form.intent}
+              onChange={set("intent")}
+              placeholder="e.g. meet people who like hiking, find a weekly study group, just get out of the house more"
+            />
+            <small>The matchmaker uses this to find events you'll actually show up to.</small>
+          </label>
           <button type="submit">Save</button>{" "}
           <button
             type="button"
@@ -169,6 +183,11 @@ export default function Profile() {
               ? `Neighborhood: ${neighborhoodName}`
               : `Home ZIP: ${profile.home_zip_code}`}
           </p>
+          {profile.intent && (
+            <p>
+              <strong>Looking for:</strong> {profile.intent}
+            </p>
+          )}
           {isOwn && (
             <>
               <button onClick={() => setEditing(true)}>Edit profile</button>{" "}
