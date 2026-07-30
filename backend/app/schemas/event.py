@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -41,3 +42,8 @@ class EventUpdate(BaseModel):
 
 class AnnouncementCreate(BaseModel):
     message: str = Field(max_length=500)
+
+
+class EventReview(BaseModel):
+    decision: Literal["approve", "reject"]
+    note: str | None = Field(default=None, max_length=500)

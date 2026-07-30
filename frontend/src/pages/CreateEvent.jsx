@@ -36,6 +36,7 @@ export default function CreateEvent() {
   });
   const [selectedTags, setSelectedTags] = useState([]);
   const [error, setError] = useState(null);
+  const [heldEvent, setHeldEvent] = useState(null); // set when the guardrail holds the new event
   const [submitting, setSubmitting] = useState(false);
   const [showHint, setShowHint] = useState(() => me && !localStorage.getItem(hintKey(me.user_id)));
   const [flyerFile, setFlyerFile] = useState(null);
@@ -115,12 +116,35 @@ export default function CreateEvent() {
         // ignored — see comment above
       }
 
+      // The mission guardrail may hold an event for review; if so, don't drop the
+      // host onto a page that looks live — tell them it's pending first.
+      if (event.review_status === "pending") {
+        setHeldEvent(event);
+        return;
+      }
       navigate(`/events/${event.event_id}`);
     } catch (err) {
       setError(err.message);
     } finally {
       setSubmitting(false);
     }
+  }
+
+  if (heldEvent) {
+    return (
+      <main>
+        <h1>Thanks — your event is being reviewed</h1>
+        <p>
+          "{heldEvent.title}" was submitted, but it's held for a quick review before it appears
+          publicly on the map. This usually just takes a little while — you'll see it go live once
+          it's approved.
+        </p>
+        <p>
+          <Link to={`/events/${heldEvent.event_id}`}>View your event</Link> ·{" "}
+          <Link to="/discover">Back to Discover</Link>
+        </p>
+      </main>
+    );
   }
 
   return (

@@ -9,17 +9,18 @@ from sqlalchemy.orm import Session
 from geoalchemy2 import Geography
 
 from app.core.images import MAX_IMAGE_BYTES, is_valid_image
-from app.core.security import current_user_id, require_user
+from app.core.security import current_user_id, require_admin, require_user
 from app.database import get_db
 from app.models.announcement import Announcement
 from app.models.event import Event
 from app.models.rsvp import Rsvp
 from app.models.tag import EventTag, Tag
 from app.models.user import User
-from app.schemas.event import AnnouncementCreate, EventCreate, EventUpdate, EventCreate, EventUpdate, FlyerTemplateSelect
+from app.schemas.event import AnnouncementCreate, EventCreate, EventReview, EventUpdate, FlyerTemplateSelect
 from app.schemas.rsvp import CheckInRequest
 from app.schemas.tag import TagAdd
 from app.services import standings
+from app.services.moderation import review_event
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
@@ -63,6 +64,9 @@ def _serialize_event(event: Event, tags: list[dict], *, include_check_in_code: b
         "event_capacity": event.event_capacity,
         "why": event.why,
         "status": event.status,
+        "review_status": event.review_status,
+        "review_summary": event.review_summary,
+        "review_reason": event.review_reason,
         "host_id": event.host_id,
         "event_image_url": event.event_image_url,
         "flyer_url": event.flyer_url,
@@ -78,6 +82,7 @@ def _serialize_event(event: Event, tags: list[dict], *, include_check_in_code: b
 
 @router.get("")
 def list_events(
+    request: Request,
     zip_code: int | None = None,
     lat: float | None = None,
     lng: float | None = None,
@@ -87,8 +92,17 @@ def list_events(
     tag_id: int | None = None,
     db: Session = Depends(get_db),
 ):
-    """List events with optional filters. Uses ST_DWithin on geo for lat/lng/radius. 200."""
+    """List events with optional filters. Uses ST_DWithin on geo for lat/lng/radius. 200.
+    Events held/rejected by the mission guardrail are hidden from everyone but their host."""
     stmt = select(Event)
+
+    # Guardrail visibility: only approved events are public; a host still sees their own
+    # held/rejected events (so the "under review" state is visible to them).
+    viewer_id = current_user_id(request)
+    if viewer_id is not None:
+        stmt = stmt.where((Event.review_status == "approved") | (Event.host_id == viewer_id))
+    else:
+        stmt = stmt.where(Event.review_status == "approved")
 
     if zip_code is not None:
         stmt = stmt.where(Event.event_zip_code == zip_code)
@@ -107,15 +121,53 @@ def list_events(
     return [_serialize_event(e, tags_by_event.get(e.event_id, [])) for e in events]
 
 
+@router.get("/pending-review")
+def list_pending_review(admin_id: int = Depends(require_admin), db: Session = Depends(get_db)):
+    """Moderation queue: events held by the guardrail, awaiting an approve/reject. Admin only.
+    Declared before /{event_id} so the literal path wins over the dynamic one."""
+    events = db.execute(
+        select(Event).where(Event.review_status == "pending").order_by(Event.created_at)
+    ).scalars().all()
+    tags_by_event = _tags_by_event(db, [e.event_id for e in events])
+    return [_serialize_event(e, tags_by_event.get(e.event_id, [])) for e in events]
+
+
 @router.get("/{event_id}")
 def get_event(event_id: int, request: Request, db: Session = Depends(get_db)):
-    """Single event with tags. 200 / 404. check_in_code is host-only."""
+    """Single event with tags. 200 / 404. check_in_code is host-only.
+    Non-approved events are visible only to their host (else 404)."""
     event = db.get(Event, event_id)
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
-    tags_by_event = _tags_by_event(db, [event_id])
     is_host = current_user_id(request) == event.host_id
+    if event.review_status != "approved" and not is_host:
+        # Don't reveal existence of held/rejected events to non-hosts.
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+    tags_by_event = _tags_by_event(db, [event_id])
     return _serialize_event(event, tags_by_event.get(event_id, []), include_check_in_code=is_host)
+
+
+@router.patch("/{event_id}/review")
+def review_event_decision(
+    event_id: int,
+    body: EventReview,
+    admin_id: int = Depends(require_admin),
+    db: Session = Depends(get_db),
+):
+    """Approve or reject a held event. Admin only. 200 / 403 / 404."""
+    event = db.get(Event, event_id)
+    if event is None:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
+
+    event.review_status = "approved" if body.decision == "approve" else "rejected"
+    if body.note:
+        # Keep the AI's original reason, append the human note.
+        prefix = f"{event.review_reason}\n" if event.review_reason else ""
+        event.review_reason = f"{prefix}[moderator] {body.note}"
+    db.commit()
+    db.refresh(event)
+    tags_by_event = _tags_by_event(db, [event_id])
+    return _serialize_event(event, tags_by_event.get(event_id, []))
 
 
 @router.post("", status_code=201)
@@ -139,6 +191,19 @@ def create_event(body: EventCreate, request: Request, db: Session = Depends(get_
         why=body.why,
         check_in_code=secrets.token_urlsafe(12),
     )
+
+    # Mission guardrail: off-mission events are held ('pending') for a human to
+    # review rather than rejected outright. Runs one Gemini call; no key -> approved.
+    tag_names = (
+        list(db.execute(select(Tag.name).where(Tag.tag_id.in_(body.tag_ids))).scalars().all())
+        if body.tag_ids
+        else []
+    )
+    verdict = review_event(body.title, body.event_description, body.why, tag_names)
+    event.review_status = verdict["status"]
+    event.review_summary = verdict["summary"]
+    event.review_reason = verdict["reason"]
+
     db.add(event)
     db.flush()
 
