@@ -79,11 +79,21 @@ a { color: var(--green-dark); }
   max-width: 1100px;
   margin: 0 auto;
   padding: 1rem 1.5rem 2rem;
-  text-align: right;
+  text-align: center;
   color: var(--ink-soft);
   font-size: 0.85rem;
 }
-.app-footer a { color: var(--ink-soft); text-decoration: none; display: block; }
+/* text-decoration-color transparent -> ink-soft (not text-decoration: none/underline)
+   so the hover underline is a color transition, not an add/remove — it never
+   changes the link's box and can't shift surrounding layout. */
+.app-footer a {
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: text-decoration-color 0.15s ease;
+  display: block;
+}
+.app-footer a:hover { text-decoration-color: var(--ink-soft); }
 
 /* ---------- buttons ---------- */
 button, .btn {
@@ -462,6 +472,32 @@ textarea { min-height: 90px; resize: vertical; }
   padding: 0.15rem 0.7rem;
   margin: 0 0.35rem 0.35rem 0;
   font-size: 0.85rem;
+}
+.chip-list { display: flex; flex-wrap: wrap; list-style: none; padding: 0; margin: 0; }
+
+/* Visually hidden but still focusable/clickable — used to keep a native
+   input (e.g. file pickers) working for a11y/keyboard use while a styled
+   label/button drives its visible appearance. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.file-field { margin-bottom: 0.9rem; }
+.file-field-label { display: block; margin-bottom: 0.3rem; font-size: 0.92rem; font-weight: 600; }
+/* The real input is .visually-hidden, not display:none, specifically so it
+   stays tab-reachable — but that means its own focus ring renders on an
+   invisible 1px box. Move the ring to the label that's actually on screen. */
+.file-field:focus-within .btn {
+  outline: 2px solid var(--green-dark);
+  outline-offset: 2px;
 }
 
 /* ---------- avatar + crop dialog ---------- */
