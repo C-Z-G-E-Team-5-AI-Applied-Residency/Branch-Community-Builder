@@ -17,6 +17,9 @@ class EventCreate(BaseModel):
     longitude: float = Field(ge=-180, le=180)
     status: str = "open"
     tag_ids: list[int] = []
+    # free-text tags (AI-suggested and/or host-typed); reused if they exist, else
+    # created as pending (emergent vocabulary)
+    tag_names: list[str] = []
     # host's stated purpose ("the why"); fed to the matchmaker and mission guardrail
     why: str | None = None
 

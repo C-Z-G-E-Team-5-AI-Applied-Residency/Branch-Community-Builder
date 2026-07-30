@@ -128,6 +128,10 @@ export const api = {
     request(`/api/profiles/${userId}/picture`, { method: "DELETE" }),
   // interests / tags
   listTags: () => request("/api/tags"),
+  suggestTags: (data) => request("/api/tags/suggest", { method: "POST", body: data }),
+  listPendingTags: () => request("/api/tags/pending"),
+  updateTag: (tagId, data) => request(`/api/tags/${tagId}`, { method: "PATCH", body: data }),
+  deleteTag: (tagId) => request(`/api/tags/${tagId}`, { method: "DELETE" }),
   getUserInterests: (userId) => request(`/api/users/${userId}/interests`),
   addInterest: (userId, tagId) =>
     request(`/api/users/${userId}/interests`, { method: "POST", body: { tag_id: tagId } }),

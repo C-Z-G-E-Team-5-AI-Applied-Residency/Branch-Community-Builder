@@ -7,19 +7,17 @@ import { api } from "../api/client.js";
 
 export default function Review() {
   const [events, setEvents] = useState(null);
+  const [tags, setTags] = useState(null);
   const [forbidden, setForbidden] = useState(false);
   const [error, setError] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  const [tagBusyId, setTagBusyId] = useState(null);
   const [notes, setNotes] = useState({}); // optional moderator note per event
 
   function load() {
-    api
-      .listPendingReview()
-      .then(setEvents)
-      .catch((err) => {
-        if (err.status === 403) setForbidden(true);
-        else setError(err.message);
-      });
+    const onErr = (err) => (err.status === 403 ? setForbidden(true) : setError(err.message));
+    api.listPendingReview().then(setEvents).catch(onErr);
+    api.listPendingTags().then(setTags).catch(onErr);
   }
 
   useEffect(load, []);
@@ -35,6 +33,20 @@ export default function Review() {
       setError(err.message);
     } finally {
       setBusyId(null);
+    }
+  }
+
+  async function decideTag(tagId, action) {
+    setTagBusyId(tagId);
+    setError(null);
+    try {
+      if (action === "approve") await api.updateTag(tagId, { status: "approved" });
+      else await api.deleteTag(tagId); // reject = remove
+      setTags((prev) => prev.filter((t) => t.tag_id !== tagId));
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setTagBusyId(null);
     }
   }
 
@@ -89,6 +101,36 @@ export default function Review() {
                 className="btn-danger"
                 disabled={busyId === e.event_id}
                 onClick={() => decide(e.event_id, "reject")}
+              >
+                Reject
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <h2>Pending tags</h2>
+      {tags === null ? (
+        <p>Loading…</p>
+      ) : tags.length === 0 ? (
+        <p>No new tags to review.</p>
+      ) : (
+        <ul style={{ listStyle: "none", padding: 0 }}>
+          {tags.map((t) => (
+            <li key={t.tag_id} style={{ marginBottom: "0.5rem" }}>
+              <strong>{t.name}</strong>{" "}
+              <small>(used {t.usage_count}×)</small>{" "}
+              <button
+                className="btn btn-primary"
+                disabled={tagBusyId === t.tag_id}
+                onClick={() => decideTag(t.tag_id, "approve")}
+              >
+                Approve
+              </button>{" "}
+              <button
+                className="btn-danger"
+                disabled={tagBusyId === t.tag_id}
+                onClick={() => decideTag(t.tag_id, "reject")}
               >
                 Reject
               </button>

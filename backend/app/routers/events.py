@@ -37,18 +37,33 @@ FLYER_TEMPLATES = {
 CHECK_IN_OPENS_BEFORE_HOURS = 1
 
 
-def _tags_by_event(db: Session, event_ids: list[int]) -> dict[int, list[dict]]:
-    """One query: {event_id: [{tag_id, name}, ...]} for a batch of events."""
+def _viewer_is_admin(db: Session, viewer_id: int | None) -> bool:
+    if viewer_id is None:
+        return False
+    user = db.get(User, viewer_id)
+    return bool(user and is_admin_email(user.email))
+
+
+def _tags_by_event(
+    db: Session, event_ids: list[int], *, viewer_id: int | None = None, viewer_is_admin: bool = False
+) -> dict[int, list[dict]]:
+    """One query: {event_id: [{tag_id, name}, ...]} for a batch of events.
+
+    Emergent tags start 'pending' and must not enter the public vocabulary until a
+    moderator approves them — so a pending tag is only included for the event's own
+    host or an admin. Everyone else sees the approved tags on the event."""
     if not event_ids:
         return {}
     rows = db.execute(
-        select(EventTag.event_id, Tag.tag_id, Tag.name)
+        select(EventTag.event_id, Tag.tag_id, Tag.name, Tag.status, Event.host_id)
         .join(Tag, Tag.tag_id == EventTag.tag_id)
+        .join(Event, Event.event_id == EventTag.event_id)
         .where(EventTag.event_id.in_(event_ids))
     ).all()
     tags_by_event: dict[int, list[dict]] = {}
-    for event_id, tag_id, name in rows:
-        tags_by_event.setdefault(event_id, []).append({"tag_id": tag_id, "name": name})
+    for event_id, tag_id, name, tag_status, host_id in rows:
+        if tag_status == "approved" or viewer_is_admin or (viewer_id is not None and viewer_id == host_id):
+            tags_by_event.setdefault(event_id, []).append({"tag_id": tag_id, "name": name})
     return tags_by_event
 
 
@@ -122,7 +137,9 @@ def list_events(
         stmt = stmt.where(func.ST_DWithin(Event.geo, point, radius * 1609.34))
 
     events = db.execute(stmt).scalars().all()
-    tags_by_event = _tags_by_event(db, [e.event_id for e in events])
+    # Pending tags on an event show only to that event's host; the wider public
+    # listing sees approved tags only.
+    tags_by_event = _tags_by_event(db, [e.event_id for e in events], viewer_id=viewer_id)
     return [_serialize_event(e, tags_by_event.get(e.event_id, [])) for e in events]
 
 
@@ -133,7 +150,7 @@ def list_pending_review(admin_id: int = Depends(require_admin), db: Session = De
     events = db.execute(
         select(Event).where(Event.review_status == "pending").order_by(Event.created_at)
     ).scalars().all()
-    tags_by_event = _tags_by_event(db, [e.event_id for e in events])
+    tags_by_event = _tags_by_event(db, [e.event_id for e in events], viewer_is_admin=True)
     return [_serialize_event(e, tags_by_event.get(e.event_id, []), include_review=True) for e in events]
 
 
@@ -155,7 +172,7 @@ def get_event(event_id: int, request: Request, db: Session = Depends(get_db)):
         if not is_admin:
             # Don't reveal existence of held/rejected events to other users.
             raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
-    tags_by_event = _tags_by_event(db, [event_id])
+    tags_by_event = _tags_by_event(db, [event_id], viewer_id=viewer_id, viewer_is_admin=is_admin)
     return _serialize_event(
         event, tags_by_event.get(event_id, []), include_check_in_code=is_host, include_review=is_host or is_admin
     )
@@ -184,7 +201,7 @@ def review_event_decision(
         event.review_reason = f"{prefix}[moderator] {body.note}"
     db.commit()
     db.refresh(event)
-    tags_by_event = _tags_by_event(db, [event_id])
+    tags_by_event = _tags_by_event(db, [event_id], viewer_is_admin=True)
     return _serialize_event(event, tags_by_event.get(event_id, []), include_review=True)
 
 
@@ -210,14 +227,29 @@ def create_event(body: EventCreate, request: Request, db: Session = Depends(get_
         check_in_code=secrets.token_urlsafe(12),
     )
 
+    # Resolve tags (emergent vocabulary). Existing tags are reused; free-text names
+    # that don't exist yet are minted as 'pending' for a moderator to approve later.
+    tags_to_attach: dict[int, Tag] = {}
+    if body.tag_ids:
+        rows = db.execute(select(Tag).where(Tag.tag_id.in_(set(body.tag_ids)))).scalars().all()
+        missing = set(body.tag_ids) - {t.tag_id for t in rows}
+        if missing:
+            # Previously this relied on the FK and raised a 500 IntegrityError.
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, f"Unknown tag_ids: {sorted(missing)}")
+        tags_to_attach.update({t.tag_id: t for t in rows})
+
+    new_names: list[str] = []
+    for name in dict.fromkeys(n.strip().lower() for n in body.tag_names if n.strip()):
+        existing = db.execute(select(Tag).where(func.lower(Tag.name) == name)).scalar_one_or_none()
+        if existing is not None:
+            tags_to_attach[existing.tag_id] = existing
+        else:
+            new_names.append(name)
+
     # Mission guardrail: off-mission events are held ('pending') for a human to
     # review rather than rejected outright. Runs one Gemini call; no key -> approved.
-    tag_names = (
-        list(db.execute(select(Tag.name).where(Tag.tag_id.in_(body.tag_ids))).scalars().all())
-        if body.tag_ids
-        else []
-    )
-    verdict = review_event(body.title, body.event_description, body.why, tag_names)
+    guardrail_tags = [t.name for t in tags_to_attach.values()] + new_names
+    verdict = review_event(body.title, body.event_description, body.why, guardrail_tags)
     event.review_status = verdict["status"]
     event.review_summary = verdict["summary"]
     event.review_reason = verdict["reason"]
@@ -225,7 +257,22 @@ def create_event(body: EventCreate, request: Request, db: Session = Depends(get_
     db.add(event)
     db.flush()
 
-    db.add_all(EventTag(event_id=event.event_id, tag_id=tag_id) for tag_id in body.tag_ids)
+    # Mint new pending tags now that the event has an id (for provenance). The
+    # savepoint handles the mint-race: if a concurrent request created the same
+    # name between our earlier lookup and this insert, reuse theirs instead of 500ing.
+    for name in new_names:
+        try:
+            with db.begin_nested():
+                tag = Tag(name=name, status="pending", created_by_event_id=event.event_id)
+                db.add(tag)
+                db.flush()
+        except IntegrityError:
+            tag = db.execute(select(Tag).where(func.lower(Tag.name) == name)).scalar_one()
+        tags_to_attach[tag.tag_id] = tag
+
+    for tag in tags_to_attach.values():
+        db.add(EventTag(event_id=event.event_id, tag_id=tag.tag_id))
+        tag.usage_count = (tag.usage_count or 0) + 1
 
     # Best-effort: record_hosted no-ops when no neighborhood polygon
     # contains this point.
@@ -234,7 +281,7 @@ def create_event(body: EventCreate, request: Request, db: Session = Depends(get_
     db.commit()
     db.refresh(event)
 
-    tags_by_event = _tags_by_event(db, [event.event_id])
+    tags_by_event = _tags_by_event(db, [event.event_id], viewer_id=event.host_id)
     return _serialize_event(
         event, tags_by_event.get(event.event_id, []), include_check_in_code=True, include_review=True
     )
@@ -271,7 +318,7 @@ def update_event(event_id: int, body: EventUpdate, request: Request, db: Session
     db.commit()
     db.refresh(event)
 
-    tags_by_event = _tags_by_event(db, [event.event_id])
+    tags_by_event = _tags_by_event(db, [event.event_id], viewer_id=event.host_id)
     return _serialize_event(event, tags_by_event.get(event.event_id, []), include_review=True)
 
 
@@ -315,7 +362,7 @@ async def upload_event_flyer(event_id: int, file: UploadFile, request: Request, 
     db.commit()
     db.refresh(event)
 
-    tags_by_event = _tags_by_event(db, [event_id])
+    tags_by_event = _tags_by_event(db, [event_id], viewer_id=event.host_id)
     return _serialize_event(event, tags_by_event.get(event_id, []), include_check_in_code=True)
 
 
@@ -357,7 +404,7 @@ def select_event_flyer_template(
     db.commit()
     db.refresh(event)
 
-    tags_by_event = _tags_by_event(db, [event_id])
+    tags_by_event = _tags_by_event(db, [event_id], viewer_id=event.host_id)
     return _serialize_event(event, tags_by_event.get(event_id, []), include_check_in_code=True)
 
 
@@ -379,12 +426,14 @@ def delete_event_flyer(event_id: int, request: Request, db: Session = Depends(ge
 
 # --- event tags ---------------------------------------------------------------
 @router.get("/{event_id}/tags")
-def list_event_tags(event_id: int, db: Session = Depends(get_db)):
-    """Tags on an event. 200 / 404."""
+def list_event_tags(event_id: int, request: Request, db: Session = Depends(get_db)):
+    """Tags on an event. 200 / 404. Pending tags show only to the host/an admin."""
     event = db.get(Event, event_id)
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
-    tags_by_event = _tags_by_event(db, [event_id])
+    viewer_id = current_user_id(request)
+    is_admin = viewer_id != event.host_id and _viewer_is_admin(db, viewer_id)
+    tags_by_event = _tags_by_event(db, [event_id], viewer_id=viewer_id, viewer_is_admin=is_admin)
     return tags_by_event.get(event_id, [])
 
 
