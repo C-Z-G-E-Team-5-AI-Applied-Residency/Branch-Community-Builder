@@ -44,6 +44,21 @@ def _get_client() -> genai.Client | None:
     return genai.Client(api_key=key)
 
 
+def build_prompt(interests: list[str], events: list[dict], intent: str | None = None) -> str:
+    """Assemble the matchmaker prompt. Pure/deterministic (no API call) so the
+    intent + per-event 'why' weighting can be unit-tested directly."""
+    events_block = "\n".join(
+        f'{e["event_id"]} | {e["title"]} | {e["event_description"]}'
+        f' | {e.get("why") or "(not stated)"} | {", ".join(e.get("tags", []))}'
+        for e in events
+    )
+    return PROMPT_TEMPLATE.format(
+        interests=", ".join(interests) or "(none listed)",
+        intent=(intent or "").strip() or "(not provided)",
+        events=events_block,
+    )
+
+
 def generate_recommendations(
     interests: list[str], events: list[dict], intent: str | None = None
 ) -> list[dict]:
@@ -55,16 +70,7 @@ def generate_recommendations(
     if not events:
         return []
 
-    events_block = "\n".join(
-        f'{e["event_id"]} | {e["title"]} | {e["event_description"]}'
-        f' | {e.get("why") or "(not stated)"} | {", ".join(e.get("tags", []))}'
-        for e in events
-    )
-    prompt = PROMPT_TEMPLATE.format(
-        interests=", ".join(interests) or "(none listed)",
-        intent=(intent or "").strip() or "(not provided)",
-        events=events_block,
-    )
+    prompt = build_prompt(interests, events, intent)
 
     try:
         resp = client.models.generate_content(
