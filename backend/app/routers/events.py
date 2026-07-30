@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from geoalchemy2 import Geography
 
 from app.core.images import MAX_IMAGE_BYTES, is_valid_image
-from app.core.security import current_user_id, require_admin, require_user
+from app.core.security import current_user_id, is_admin_email, require_admin, require_user
 from app.database import get_db
 from app.models.announcement import Announcement
 from app.models.event import Event
@@ -52,7 +52,9 @@ def _tags_by_event(db: Session, event_ids: list[int]) -> dict[int, list[dict]]:
     return tags_by_event
 
 
-def _serialize_event(event: Event, tags: list[dict], *, include_check_in_code: bool = False) -> dict:
+def _serialize_event(
+    event: Event, tags: list[dict], *, include_check_in_code: bool = False, include_review: bool = False
+) -> dict:
     out = {
         "event_id": event.event_id,
         "title": event.title,
@@ -64,9 +66,9 @@ def _serialize_event(event: Event, tags: list[dict], *, include_check_in_code: b
         "event_capacity": event.event_capacity,
         "why": event.why,
         "status": event.status,
+        # review_status is a harmless state flag; the AI summary/reason are moderator-
+        # facing (and may echo user text), so only expose them to the host/admin.
         "review_status": event.review_status,
-        "review_summary": event.review_summary,
-        "review_reason": event.review_reason,
         "host_id": event.host_id,
         "event_image_url": event.event_image_url,
         "flyer_url": event.flyer_url,
@@ -75,6 +77,9 @@ def _serialize_event(event: Event, tags: list[dict], *, include_check_in_code: b
         "tags": tags,
         "check_in_opens_before_hours": CHECK_IN_OPENS_BEFORE_HOURS,
     }
+    if include_review:
+        out["review_summary"] = event.review_summary
+        out["review_reason"] = event.review_reason
     if include_check_in_code:
         out["check_in_code"] = event.check_in_code
     return out
@@ -129,22 +134,27 @@ def list_pending_review(admin_id: int = Depends(require_admin), db: Session = De
         select(Event).where(Event.review_status == "pending").order_by(Event.created_at)
     ).scalars().all()
     tags_by_event = _tags_by_event(db, [e.event_id for e in events])
-    return [_serialize_event(e, tags_by_event.get(e.event_id, [])) for e in events]
+    return [_serialize_event(e, tags_by_event.get(e.event_id, []), include_review=True) for e in events]
 
 
 @router.get("/{event_id}")
 def get_event(event_id: int, request: Request, db: Session = Depends(get_db)):
     """Single event with tags. 200 / 404. check_in_code is host-only.
-    Non-approved events are visible only to their host (else 404)."""
+    Non-approved events are visible only to their host or an admin (else 404)."""
     event = db.get(Event, event_id)
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
-    is_host = current_user_id(request) == event.host_id
-    if event.review_status != "approved" and not is_host:
-        # Don't reveal existence of held/rejected events to non-hosts.
+    viewer_id = current_user_id(request)
+    is_host = viewer_id == event.host_id
+    viewer = db.get(User, viewer_id) if viewer_id else None
+    is_admin = bool(viewer and is_admin_email(viewer.email))
+    if event.review_status != "approved" and not (is_host or is_admin):
+        # Don't reveal existence of held/rejected events to other users.
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
     tags_by_event = _tags_by_event(db, [event_id])
-    return _serialize_event(event, tags_by_event.get(event_id, []), include_check_in_code=is_host)
+    return _serialize_event(
+        event, tags_by_event.get(event_id, []), include_check_in_code=is_host, include_review=is_host or is_admin
+    )
 
 
 @router.patch("/{event_id}/review")
@@ -154,7 +164,11 @@ def review_event_decision(
     admin_id: int = Depends(require_admin),
     db: Session = Depends(get_db),
 ):
-    """Approve or reject a held event. Admin only. 200 / 403 / 404."""
+    """Approve or reject an event. Admin only. 200 / 403 / 404.
+
+    Deliberately accepts any current status (not just 'pending'): a moderator can also
+    take down a previously-approved event or restore a rejected one — an explicit admin
+    override. Content edits re-run the guardrail separately (see update_event)."""
     event = db.get(Event, event_id)
     if event is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Event not found")
@@ -167,7 +181,7 @@ def review_event_decision(
     db.commit()
     db.refresh(event)
     tags_by_event = _tags_by_event(db, [event_id])
-    return _serialize_event(event, tags_by_event.get(event_id, []))
+    return _serialize_event(event, tags_by_event.get(event_id, []), include_review=True)
 
 
 @router.post("", status_code=201)
@@ -217,7 +231,9 @@ def create_event(body: EventCreate, request: Request, db: Session = Depends(get_
     db.refresh(event)
 
     tags_by_event = _tags_by_event(db, [event.event_id])
-    return _serialize_event(event, tags_by_event.get(event.event_id, []), include_check_in_code=True)
+    return _serialize_event(
+        event, tags_by_event.get(event.event_id, []), include_check_in_code=True, include_review=True
+    )
 
 
 @router.patch("/{event_id}")
@@ -230,14 +246,29 @@ def update_event(event_id: int, body: EventUpdate, request: Request, db: Session
     if event.host_id != user_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
 
-    for field, value in body.model_dump(exclude_unset=True).items():
+    changed = body.model_dump(exclude_unset=True)
+    for field, value in changed.items():
         setattr(event, field, value)
+
+    # Edit-time guardrail: a host could get an innocuous event approved and then
+    # edit it into off-mission content. So if any field the guardrail judges
+    # changed, re-run it and reset the review state on the *new* content.
+    if {"title", "event_description", "why"} & changed.keys():
+        tag_names = list(
+            db.execute(
+                select(Tag.name).join(EventTag, EventTag.tag_id == Tag.tag_id).where(EventTag.event_id == event.event_id)
+            ).scalars().all()
+        )
+        verdict = review_event(event.title, event.event_description, event.why, tag_names)
+        event.review_status = verdict["status"]
+        event.review_summary = verdict["summary"]
+        event.review_reason = verdict["reason"]
 
     db.commit()
     db.refresh(event)
 
     tags_by_event = _tags_by_event(db, [event.event_id])
-    return _serialize_event(event, tags_by_event.get(event.event_id, []))
+    return _serialize_event(event, tags_by_event.get(event.event_id, []), include_review=True)
 
 
 @router.delete("/{event_id}")

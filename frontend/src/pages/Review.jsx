@@ -10,6 +10,7 @@ export default function Review() {
   const [forbidden, setForbidden] = useState(false);
   const [error, setError] = useState(null);
   const [busyId, setBusyId] = useState(null);
+  const [notes, setNotes] = useState({}); // optional moderator note per event
 
   function load() {
     api
@@ -27,7 +28,7 @@ export default function Review() {
     setBusyId(eventId);
     setError(null);
     try {
-      await api.reviewEvent(eventId, decision, null);
+      await api.reviewEvent(eventId, decision, notes[eventId]?.trim() || null);
       // Drop it from the queue immediately; no need to refetch.
       setEvents((prev) => prev.filter((e) => e.event_id !== eventId));
     } catch (err) {
@@ -70,6 +71,13 @@ export default function Review() {
               <p>
                 <strong>Why it was flagged:</strong> {e.review_reason || "—"}
               </p>
+              <input
+                type="text"
+                value={notes[e.event_id] || ""}
+                onChange={(ev) => setNotes((n) => ({ ...n, [e.event_id]: ev.target.value }))}
+                placeholder="Optional note (saved on reject/approve)"
+                style={{ display: "block", width: "100%", marginBottom: "0.5rem" }}
+              />
               <button
                 className="btn btn-primary"
                 disabled={busyId === e.event_id}
