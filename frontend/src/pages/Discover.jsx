@@ -21,6 +21,7 @@ export default function Discover() {
   const [searchNote, setSearchNote] = useState(null);
   const [recsOpen, setRecsOpen] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   // Mobile-only dropdown state — on wide screens the nav/search bars ignore
   // these and stay always-visible (see the max-width:900px CSS).
   const [navOpen, setNavOpen] = useState(false);
@@ -40,6 +41,12 @@ export default function Discover() {
     observer.observe(el);
     return () => observer.disconnect();
   }, []);
+
+  // Show the Review link only to moderators (server also gates the endpoint).
+  useEffect(() => {
+    if (!me) return setIsAdmin(false);
+    api.getIsAdmin().then((r) => setIsAdmin(Boolean(r?.is_admin))).catch(() => setIsAdmin(false));
+  }, [me]);
 
   useEffect(() => {
     api.listEvents({ status: "open" }).then(setEvents).catch(() => setEvents([]));
@@ -151,6 +158,8 @@ export default function Discover() {
             {me && <Link to="/events">My Events</Link>}
             {me && <Link to="/rsvps">My RSVPs</Link>}
             {me && <Link to={`/profile/${me.user_id}`}>Profile</Link>}
+            {isAdmin && <Link to="/review">Review</Link>}
+            {isAdmin && <Link to="/metrics">Metrics</Link>}
           </nav>
 
           <div className={`map-search-overlay${searchOpen ? " is-open" : ""}`}>

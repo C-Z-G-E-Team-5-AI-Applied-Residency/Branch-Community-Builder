@@ -42,7 +42,16 @@ python -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt
 cp .env.example .env          # fill in DATABASE_URL, GEMINI_API_KEY, SESSION_SECRET
 uvicorn app.main:app --reload # http://localhost:8000  (docs at /docs)
+
+# Tests
+pytest                        # from backend/, with the venv active
 ```
+
+Notes on the tests: unit tests (`test_moderation.py`, `test_recommendations.py`) need
+nothing external. The endpoint tests (`test_events_review.py`) drive the app against the
+database in `DATABASE_URL`, but each test runs inside a transaction that is **rolled back**
+at the end (see `tests/conftest.py`'s `db_isolation` fixture), so they never commit rows —
+you can safely point them at your dev database. They don't call Gemini (moderation is stubbed).
 
 ### 3. Frontend
 ```bash
@@ -583,8 +592,8 @@ This project will make use of the following technologies, 3rd-Party APIs, and ne
   - Endpoint: `GET https://nominatim.openstreetmap.org/search?q={address}&format=json&limit=1`
   - Values used: `lat` and `lon` from the first result, stored as `events.latitude` and `events.longitude` (which in turn generate `events.geo`).
 - **Google Gemini API** — powers the AI Event Matchmaker.
-  - Endpoint: `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent`
-  - Model: `gemini-2.5-flash` (free tier; fast and sufficient for ranking events)
+  - Endpoint: `POST https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-lite:generateContent`
+  - Model: `gemini-3.1-flash-lite` — chosen over `2.5-flash` for two reasons: (1) on Google's free tier the Flash-Lite line carries a higher daily request allowance than standard Flash (per AI Studio's published free-tier limits at time of writing; these change periodically, so verify current numbers there), which matters because we're free-tier only; (2) it's a lower-latency model, and event ranking doesn't need Flash's extra reasoning depth.
   - Values sent: the user's interest tags + a list of nearby events. The request sets `generationConfig.responseMimeType: "application/json"` (and optionally a `responseSchema`) so the model returns a structured array of `{ "eventId", "reason" }`. Called from `POST /api/users/:user_id/recommendations/refresh`, with results written to the `recommendations` table.
 
 **Libraries**

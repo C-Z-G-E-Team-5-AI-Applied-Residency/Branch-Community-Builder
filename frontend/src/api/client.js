@@ -128,6 +128,10 @@ export const api = {
     request(`/api/profiles/${userId}/picture`, { method: "DELETE" }),
   // interests / tags
   listTags: () => request("/api/tags"),
+  suggestTags: (data) => request("/api/tags/suggest", { method: "POST", body: data }),
+  listPendingTags: () => request("/api/tags/pending"),
+  updateTag: (tagId, data) => request(`/api/tags/${tagId}`, { method: "PATCH", body: data }),
+  deleteTag: (tagId) => request(`/api/tags/${tagId}`, { method: "DELETE" }),
   getUserInterests: (userId) => request(`/api/users/${userId}/interests`),
   addInterest: (userId, tagId) =>
     request(`/api/users/${userId}/interests`, { method: "POST", body: { tag_id: tagId } }),
@@ -142,6 +146,13 @@ export const api = {
   getRecommendations: (userId) => request(`/api/users/${userId}/recommendations`),
   refreshRecommendations: (userId) =>
     request(`/api/users/${userId}/recommendations/refresh`, { method: "POST" }),
+  // moderation (admins only, except is-admin which any signed-in user may call)
+  getIsAdmin: () => request("/api/me/is-admin"),
+  listPendingReview: () => request("/api/events/pending-review"),
+  reviewEvent: (eventId, decision, note) =>
+    request(`/api/events/${eventId}/review`, { method: "PATCH", body: { decision, note } }),
+  // metrics (admin only)
+  getRecommendationConversion: () => request("/api/metrics/recommendation-conversion"),
 };
 
 // Same Nominatim service CreateEvent.jsx geocodes addresses through. Resolves
@@ -178,12 +189,22 @@ export async function getHostedEventBreakdown(userId) {
   );
 }
 
+// Nominatim's usage policy caps this at 1 request/second and can start
+// blocking heavy callers — cache by ZIP (module-level, so it survives
+// across profile views in this tab) since the same handful of ZIPs get
+// looked up repeatedly as people browse profiles/leaderboards.
+const zipNeighborhoodCache = new Map();
+
 export async function getNeighborhoodForZip(zip) {
+  if (!zip) return null;
+  if (zipNeighborhoodCache.has(zip)) return zipNeighborhoodCache.get(zip);
   const params = new URLSearchParams({ postalcode: zip, country: "us", format: "json", limit: "1" });
   const res = await fetch(`${NOMINATIM_URL}?${params}`);
   if (!res.ok) return null;
   const [hit] = await res.json();
   if (!hit) return null;
   const neighborhoods = await api.listNeighborhoods({ lat: parseFloat(hit.lat), lng: parseFloat(hit.lon) });
-  return neighborhoods[0]?.name ?? null;
+  const name = neighborhoods[0]?.name ?? null;
+  zipNeighborhoodCache.set(zip, name);
+  return name;
 }

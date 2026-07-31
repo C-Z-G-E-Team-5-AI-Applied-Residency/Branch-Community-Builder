@@ -14,21 +14,25 @@ from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-MODEL = "gemini-2.5-flash"
+MODEL = "gemini-3.1-flash-lite"
 
 # The .env.example placeholder — treat it the same as "no key configured".
 _PLACEHOLDER_KEY = "your-gemini-api-key"
 
-PROMPT_TEMPLATE = """You are BRANCH's event matchmaker. Given a user's interests and
-a list of nearby events, pick the events they are most likely to enjoy and attend.
+PROMPT_TEMPLATE = """You are BRANCH's event matchmaker. Given a user's interests, what they
+said they want out of going out, and a list of nearby events, pick the events they are most
+likely to enjoy and actually show up to. Weigh the user's own words (their intent) as heavily
+as their interest tags — it captures the "why" behind what they're looking for.
 
 User interests: {interests}
+User intent (in their own words): {intent}
 
-Nearby events (id | title | description | tags):
+Nearby events (id | title | description | why the host is holding it | tags):
 {events}
 
 Return ONLY a JSON array. Each item: {{"eventId": <int>, "reason": "<one sentence>"}}.
-Do not include events that are a poor fit. No preamble, no markdown fences.
+The reason should connect the event to the user's intent/interests. Do not include events that
+are a poor fit. No preamble, no markdown fences.
 """
 
 
@@ -40,7 +44,24 @@ def _get_client() -> genai.Client | None:
     return genai.Client(api_key=key)
 
 
-def generate_recommendations(interests: list[str], events: list[dict]) -> list[dict]:
+def build_prompt(interests: list[str], events: list[dict], intent: str | None = None) -> str:
+    """Assemble the matchmaker prompt. Pure/deterministic (no API call) so the
+    intent + per-event 'why' weighting can be unit-tested directly."""
+    events_block = "\n".join(
+        f'{e["event_id"]} | {e["title"]} | {e["event_description"]}'
+        f' | {e.get("why") or "(not stated)"} | {", ".join(e.get("tags", []))}'
+        for e in events
+    )
+    return PROMPT_TEMPLATE.format(
+        interests=", ".join(interests) or "(none listed)",
+        intent=(intent or "").strip() or "(not provided)",
+        events=events_block,
+    )
+
+
+def generate_recommendations(
+    interests: list[str], events: list[dict], intent: str | None = None
+) -> list[dict]:
     """Return a list of {"eventId", "reason"} dicts. Empty list when no API key
     is configured or the call/response is unusable — never raises."""
     client = _get_client()
@@ -49,14 +70,7 @@ def generate_recommendations(interests: list[str], events: list[dict]) -> list[d
     if not events:
         return []
 
-    events_block = "\n".join(
-        f'{e["event_id"]} | {e["title"]} | {e["event_description"]} | {", ".join(e.get("tags", []))}'
-        for e in events
-    )
-    prompt = PROMPT_TEMPLATE.format(
-        interests=", ".join(interests) or "(none listed)",
-        events=events_block,
-    )
+    prompt = build_prompt(interests, events, intent)
 
     try:
         resp = client.models.generate_content(

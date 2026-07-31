@@ -7,16 +7,9 @@ from app.models.community_standing import CommunityStanding
 from app.models.neighborhood import Neighborhood
 from app.models.user import User
 from app.schemas.neighborhood import NeighborhoodOut
+from app.services.standings import NEARBY_METERS
 
 router = APIRouter(prefix="/api/neighborhoods", tags=["neighborhoods"])
-
-# Zillow's neighborhood polygons have gaps and don't line up with ZIP-code
-# centroids, so a point that's squarely "in" a neighborhood in the everyday
-# sense often still misses an exact ST_Contains — e.g. 11226 (Flatbush,
-# Brooklyn) geocodes ~1.2km outside the Flatbush polygon. Cap the nearest
-# fallback so a point nowhere near any seeded neighborhood (e.g. a ZIP outside
-# NY) still comes back empty instead of matching whatever's technically closest.
-NEARBY_METERS = 3200  # ~2 miles
 
 @router.get("", response_model=list[NeighborhoodOut])
 def list_neighborhoods(
@@ -37,9 +30,14 @@ def list_neighborhoods(
             query.where(func.ST_Contains(func.cast(Neighborhood.boundary, Geometry), point))
         ).scalars().all()
         if not neighborhoods:
-            distance = func.ST_Distance(Neighborhood.boundary, func.cast(point, Geography))
+            # ST_DWithin (index-assisted) filters; ST_Distance just orders the
+            # (already-small) result — same split list_events uses.
+            point_geog = func.cast(point, Geography)
+            distance = func.ST_Distance(Neighborhood.boundary, point_geog)
             neighborhoods = db.execute(
-                query.where(distance <= NEARBY_METERS).order_by(distance).limit(1)
+                query.where(func.ST_DWithin(Neighborhood.boundary, point_geog, NEARBY_METERS))
+                .order_by(distance)
+                .limit(1)
             ).scalars().all()
         return neighborhoods
     neighborhoods = db.execute(query).scalars().all()

@@ -21,7 +21,8 @@ CREATE TABLE profiles (
     picture_mime    TEXT,
     bio             TEXT NOT NULL,
     user_id         INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
-    home_zip_code   TEXT NOT NULL
+    home_zip_code   TEXT NOT NULL,
+    intent          TEXT             -- free-text "what I want to do offline" (matchmaking)
 );
 
 -- ---------------------------------------------------------------------------
@@ -45,7 +46,11 @@ CREATE TABLE events (
     check_in_code   TEXT,
     flyer_url       TEXT,            -- template asset path, or /api/events/{id}/flyer once uploaded
     flyer_data      BYTEA,           -- uploaded flyer bytes (served at /api/events/{id}/flyer)
-    flyer_mime      TEXT
+    flyer_mime      TEXT,
+    why             TEXT,            -- host's stated purpose (matchmaking + guardrail)
+    review_status   TEXT NOT NULL DEFAULT 'approved',  -- 'approved' | 'pending' | 'rejected'
+    review_summary  TEXT,            -- AI one-line summary shown on the review card
+    review_reason   TEXT             -- AI "why it was flagged" (+ any human note)
 );
 CREATE INDEX events_geo_idx ON events USING GIST (geo);
 
@@ -84,8 +89,11 @@ CREATE TABLE community_standing (
 
 -- ---------------------------------------------------------------------------
 CREATE TABLE tags (
-    tag_id SERIAL PRIMARY KEY,
-    name   TEXT UNIQUE NOT NULL
+    tag_id              SERIAL PRIMARY KEY,
+    name                TEXT UNIQUE NOT NULL,
+    status              TEXT NOT NULL DEFAULT 'approved',  -- 'approved' | 'pending' (emergent tags)
+    created_by_event_id INTEGER REFERENCES events(event_id) ON DELETE SET NULL,  -- provenance
+    usage_count         INTEGER NOT NULL DEFAULT 0         -- rank/merge/prune the taxonomy
 );
 
 INSERT INTO tags (name) VALUES
@@ -120,6 +128,17 @@ CREATE TABLE recommendations (
 );
 
 -----------------------------------------------------------------------------
+-- Append-only history of recommendations (the table above is a cache), used to
+-- measure recommendation -> RSVP -> check-in conversion over time.
+CREATE TABLE recommendation_log (
+    id             SERIAL PRIMARY KEY,
+    user_id        INTEGER NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    event_id       INTEGER NOT NULL REFERENCES events(event_id) ON DELETE CASCADE,
+    recommended_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (user_id, event_id)  -- one row per (user, event) ever recommended
+);
+
+-----------------------------------------------------------------------------
 CREATE TABLE announcements (
     announcement_id SERIAL PRIMARY KEY,
     event_id        INTEGER NOT NULL REFERENCES events(event_id) ON DELETE CASCADE,
@@ -127,3 +146,36 @@ CREATE TABLE announcements (
     message         TEXT NOT NULL,
     created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-----------------------------------------------------------------------------
+CREATE TABLE weekly_prompts (
+    prompt_id     SERIAL PRIMARY KEY,
+    question_text TEXT NOT NULL,
+    week_start    DATE NOT NULL UNIQUE,  -- Monday of the prompt week
+    created_at    TIMESTAMPTZ DEFAULT NOW()
+);
+
+CREATE TABLE prompt_responses (
+    response_id     SERIAL PRIMARY KEY,
+    prompt_id       INTEGER REFERENCES weekly_prompts(prompt_id) ON DELETE CASCADE,
+    user_id         INTEGER REFERENCES users(user_id) ON DELETE CASCADE,
+    response_text   TEXT NOT NULL,
+    created_at      TIMESTAMPTZ DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE(user_id, prompt_id)
+);
+
+-- Trigger function is generic (any table with an updated_at column can reuse
+-- it); the trigger below wires it specifically to prompt_responses.
+CREATE OR REPLACE FUNCTION set_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  NEW.updated_at = NOW();
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER prompt_responses_update_timestamp
+BEFORE UPDATE ON prompt_responses
+FOR EACH ROW
+EXECUTE FUNCTION set_updated_at();

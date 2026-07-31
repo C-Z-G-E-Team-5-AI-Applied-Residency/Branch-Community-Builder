@@ -18,5 +18,7 @@ class Profile(Base):
     bio: Mapped[str] = mapped_column(String, nullable=False)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.user_id", ondelete="CASCADE"))
     home_zip_code: Mapped[str] = mapped_column(String, nullable=False)
+    # free-text "what I want to do offline"; fed to the AI matchmaker alongside interest tags
+    intent: Mapped[str | None] = mapped_column(String, nullable=True)
 
     user = relationship("User", back_populates="profile")
