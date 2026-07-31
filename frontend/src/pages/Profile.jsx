@@ -6,7 +6,6 @@ import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { api, apiUrl, getNeighborhoodForZip } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import AvatarInput from "../components/AvatarInput.jsx";
-import LeaderBadge from "../components/LeaderBadge.jsx";
 
 const DEFAULT_AVATAR = "/images/default_avatar.svg";
 
@@ -116,9 +115,7 @@ export default function Profile() {
 
   return (
     <main>
-      <h1>
-        {profile.display_name} <LeaderBadge userId={Number(userId)} />
-      </h1>
+      <h1>{profile.display_name}</h1>
       {!editing && (
         <img
           className="avatar"
