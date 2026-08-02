@@ -2,11 +2,10 @@
 // Hosted events and RSVPs live only on the dedicated /events and /rsvps
 // pages (reached via the map's nav overlay) — not duplicated here.
 import { useCallback, useEffect, useState } from "react";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { api, apiUrl, getNeighborhoodForZip } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import AvatarInput from "../components/AvatarInput.jsx";
-import LeaderBadge from "../components/LeaderBadge.jsx";
 
 const DEFAULT_AVATAR = "/images/default_avatar.svg";
 
@@ -18,7 +17,6 @@ export default function Profile() {
 
   const [profile, setProfile] = useState(null);
   const [neighborhoodName, setNeighborhoodName] = useState(null);
-  const [standings, setStandings] = useState([]);
   const [editing, setEditing] = useState(false);
   const [form, setForm] = useState({ display_name: "", bio: "", home_zip_code: "", intent: "" });
   const [pictureFile, setPictureFile] = useState(null);
@@ -46,7 +44,6 @@ export default function Profile() {
         if (err.status === 404) setNoProfile(true);
         else setError(err.message);
       });
-    api.getUserStandings(userId).then(setStandings).catch(() => setStandings([]));
   }, [userId]);
 
   useEffect(load, [load]);
@@ -118,9 +115,7 @@ export default function Profile() {
 
   return (
     <main>
-      <h1>
-        {profile.display_name} <LeaderBadge userId={Number(userId)} />
-      </h1>
+      <h1>{profile.display_name}</h1>
       {!editing && (
         <img
           className="avatar"
@@ -213,19 +208,9 @@ export default function Profile() {
       )}
 
       <h2>Community standing</h2>
-      {standings.length ? (
-        <ul>
-          {standings.map((s) => (
-            <li key={s.standing_id}>
-              {s.neighborhood_name} ({s.city}): hosted {s.events_hosted}, attended{" "}
-              {s.events_attended}
-              {s.is_leader && " · 🌿 leader"}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>No community activity yet.</p>
-      )}
+      <p>
+        <Link to={`/profile/${userId}/standing`}>View Community Standing →</Link>
+      </p>
 
       {isOwn && (
         <p>

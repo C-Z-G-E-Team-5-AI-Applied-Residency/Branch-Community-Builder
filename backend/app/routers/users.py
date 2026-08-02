@@ -18,6 +18,7 @@ from app.models.user import User
 from app.schemas.tag import InterestCreate
 from app.schemas.user import UserOut
 from app.services.recommendations import generate_recommendations
+from app.services.standings import get_hosted_event_breakdown
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -143,6 +144,7 @@ def get_user_standings(user_id: int, db: Session = Depends(get_db)):
         .where(CommunityStanding.user_id == user_id)
         .order_by(CommunityStanding.events_hosted.desc(), CommunityStanding.events_attended.desc())
     ).all()
+    hosted_by_neighborhood = get_hosted_event_breakdown(db, user_id)
     return [
         {
             "standing_id": s.standing_id,
@@ -154,6 +156,7 @@ def get_user_standings(user_id: int, db: Session = Depends(get_db)):
             "events_attended": s.events_attended,
             "is_leader": s.is_leader,
             "updated_at": s.updated_at,
+            "hosted_events": hosted_by_neighborhood.get(s.neighborhood_id, []),
         }
         for s, name, city in rows
     ]

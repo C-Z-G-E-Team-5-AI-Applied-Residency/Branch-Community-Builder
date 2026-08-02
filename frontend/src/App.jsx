@@ -10,6 +10,7 @@ import RSVPs from "./pages/RSVPs.jsx";
 import CreateEvent from "./pages/CreateEvent.jsx";
 import EventDetail from "./pages/EventDetail.jsx";
 import Profile from "./pages/Profile.jsx";
+import CommunityStanding from "./pages/CommunityStanding.jsx";
 import HostCheckIn from "./pages/HostCheckIn.jsx";
 import Review from "./pages/Review.jsx";
 import Metrics from "./pages/Metrics.jsx";
@@ -36,6 +37,10 @@ export default function App() {
         <Route path="/events/:eventId" element={<RequireAuth><EventDetail /></RequireAuth>} />
         <Route path="/events/:eventId/host" element={<RequireAuth><HostCheckIn /></RequireAuth>} />
         <Route path="/profile/:userId" element={<RequireAuth><Profile /></RequireAuth>} />
+        <Route
+          path="/profile/:userId/standing"
+          element={<RequireAuth><CommunityStanding /></RequireAuth>}
+        />
         {/* Admin-gated server-side (403 for non-admins); the nav link is also admin-only. */}
         <Route path="/review" element={<RequireAuth><Review /></RequireAuth>} />
         <Route path="/metrics" element={<RequireAuth><Metrics /></RequireAuth>} />
