@@ -2,7 +2,9 @@
 // Signed in: Profile / My Events / My RSVPs / + Create Event all live on the
 // Discover map's own overlay nav now (see BackToDiscover.jsx for the
 // reverse trip back here). Sign out lives on the profile page instead.
-// Signed out: About / Contact, plus Sign In (hidden on the sign-in page itself).
+// About / Contact only show up while actually on those pages — nowhere
+// else in the app. Sign In shows signed-out (and not on the sign-in page
+// itself).
 import { useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -35,15 +37,17 @@ export default function Header() {
     <header className="app-header" ref={headerRef}>
       <Link to="/discover" className="brand">[ BRANCH… ]</Link>
       <BackToDiscover />
-      {!me && (
-        <nav>
-          <a href="#about">About</a>
-          <a href="#contact">Contact</a>
-          {pathname !== "/signin" && (
-            <Link to="/signin" className="btn btn-primary">Sign In</Link>
-          )}
-        </nav>
-      )}
+      <nav>
+        {(pathname === "/about" || pathname === "/contact") && (
+          <>
+            <Link to="/about">About</Link>
+            <Link to="/contact">Contact</Link>
+          </>
+        )}
+        {!me && pathname !== "/signin" && (
+          <Link to="/signin" className="btn btn-primary">Sign In</Link>
+        )}
+      </nav>
     </header>
   );
 }
