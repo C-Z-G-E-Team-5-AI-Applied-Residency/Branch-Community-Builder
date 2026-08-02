@@ -506,6 +506,7 @@ textarea { min-height: 90px; resize: vertical; }
   align-items: center;
   gap: 1rem;
   margin-top: 1.25rem;
+  overflow: hidden;
 }
 .standing-nav-btn {
   width: 2.5rem;
@@ -522,7 +523,6 @@ textarea { min-height: 90px; resize: vertical; }
 }
 .standing-nav-btn:hover { background: var(--green-soft); }
 
-.standing-carousel { overflow: hidden; }
 .standing-card { flex: 1; }
 .standing-card h2 { margin-top: 0; }
 

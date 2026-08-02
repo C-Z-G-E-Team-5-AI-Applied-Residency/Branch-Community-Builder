@@ -2,9 +2,15 @@
 // events attended, hosted events with confirmed-attendee turnout, and
 // leader status — browsed one neighborhood at a time via prev/next arrows
 // (or the left/right keys), with a slide animation in the step direction.
+//
+// The hosted-events breakdown comes from GET .../standings itself (server
+// resolves each event's neighborhood with the same lookup that incremented
+// events_hosted), not a separate client-side pass over every event in the
+// system — that keeps the count above the list and the list itself from
+// ever disagreeing about which neighborhood an event belongs to.
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, getHostedEventBreakdown } from "../api/client.js";
+import { api } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 
 export default function CommunityStanding() {
@@ -13,19 +19,13 @@ export default function CommunityStanding() {
   const isOwn = me && me.user_id === Number(userId);
 
   const [standings, setStandings] = useState(null);
-  const [hostedEvents, setHostedEvents] = useState([]);
   const [index, setIndex] = useState(0);
   const [direction, setDirection] = useState("right");
   const [error, setError] = useState(null);
 
   useEffect(() => {
     setIndex(0);
-    Promise.all([api.getUserStandings(userId), getHostedEventBreakdown(userId)])
-      .then(([standingsRes, hostedRes]) => {
-        setStandings(standingsRes);
-        setHostedEvents(hostedRes);
-      })
-      .catch((err) => setError(err.message));
+    api.getUserStandings(userId).then(setStandings).catch((err) => setError(err.message));
   }, [userId]);
 
   // Bound here (not below the early returns) since hooks must run
@@ -34,6 +34,8 @@ export default function CommunityStanding() {
   useEffect(() => {
     function onKeyDown(e) {
       if (!standings || standings.length < 2) return;
+      // Don't hijack arrow keys from an actual form control on the page.
+      if (e.target.closest("input, textarea, select")) return;
       if (e.key === "ArrowLeft") {
         setDirection("left");
         setIndex((i) => (i - 1 + standings.length) % standings.length);
@@ -60,7 +62,7 @@ export default function CommunityStanding() {
   }
 
   const standing = standings[index];
-  const hostedHere = hostedEvents.filter((e) => e.neighborhood_id === standing.neighborhood_id);
+  const hostedHere = standing.hosted_events;
   const goPrev = () => {
     setDirection("left");
     setIndex((i) => (i - 1 + standings.length) % standings.length);
@@ -74,6 +76,13 @@ export default function CommunityStanding() {
     <main>
       <h1>Community Standing</h1>
       <p><Link to={`/profile/${userId}`}>← Back to profile</Link></p>
+
+      {/* Not the visible position label below — that's redundant to a sighted
+          user tracking the slide animation. This is what a screen reader
+          hears after Prev/Next, since the card swap itself is silent. */}
+      <p className="visually-hidden" aria-live="polite">
+        {standing.neighborhood_name}, {index + 1} of {standings.length}
+      </p>
 
       <div className="standing-carousel">
         <button

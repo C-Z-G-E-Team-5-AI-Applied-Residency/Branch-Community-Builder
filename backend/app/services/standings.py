@@ -16,7 +16,9 @@ from sqlalchemy import cast, func, select
 from sqlalchemy.orm import Session
 
 from app.models.community_standing import CommunityStanding
+from app.models.event import Event
 from app.models.neighborhood import Neighborhood
+from app.models.rsvp import Rsvp
 
 LEADER_HOSTED_THRESHOLD = 3
 LEADER_ATTENDED_THRESHOLD = 10
@@ -103,6 +105,44 @@ def record_attendance(db: Session, user_id: int, latitude: float, longitude: flo
 
     recompute_leader(db, user_id, neighborhood_id)
     # No db.commit() here — caller's endpoint owns the transaction boundary.
+
+
+def get_hosted_event_breakdown(db: Session, user_id: int) -> dict[int, list[dict]]:
+    """Per-neighborhood breakdown of a user's hosted events, keyed by
+    neighborhood_id (events that resolve to no neighborhood are omitted).
+
+    Reuses `_resolve_neighborhood_id` — the same resolver `record_hosted` used
+    when it incremented each event's neighborhood counter — so this list can
+    never disagree with `events_hosted` about which neighborhood an event
+    belongs to. Computed server-side (vs. the caller re-deriving it from
+    `GET /api/events` + `GET /api/neighborhoods` per event) so a host with many
+    events costs one request instead of a full event-table scan plus a
+    fan-out of two more requests per event.
+    """
+    events = db.execute(select(Event).where(Event.host_id == user_id)).scalars().all()
+    if not events:
+        return {}
+
+    confirmed_counts = dict(
+        db.execute(
+            select(Rsvp.event_id, func.count())
+            .where(Rsvp.event_id.in_([e.event_id for e in events]), Rsvp.status == "going")
+            .group_by(Rsvp.event_id)
+        ).all()
+    )
+
+    breakdown: dict[int, list[dict]] = {}
+    for event in events:
+        neighborhood_id = _resolve_neighborhood_id(db, event.latitude, event.longitude)
+        if neighborhood_id is None:
+            continue
+        breakdown.setdefault(neighborhood_id, []).append({
+            "event_id": event.event_id,
+            "title": event.title,
+            "event_date": event.event_date,
+            "confirmed_count": confirmed_counts.get(event.event_id, 0),
+        })
+    return breakdown
 
 
 def recompute_leader(db: Session, user_id: int, neighborhood_id: int) -> None:
