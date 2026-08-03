@@ -489,19 +489,9 @@ textarea { min-height: 90px; resize: vertical; }
 .prompt-form textarea { margin: 0 0 0.35rem; }
 .prompt-char-count { margin: 0 0 0.75rem; color: var(--ink-soft); font-size: 0.8rem; text-align: right; }
 .prompt-form-actions { display: flex; gap: 0.5rem; }
-.prompt-meta {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.75rem;
-  color: var(--ink-soft);
-  font-size: 0.9rem;
-  background: var(--green-soft);
-  border-radius: 8px;
-  padding: 0.6rem 0.9rem;
-  margin: 0;
-}
+.prompt-empty-hint { color: var(--ink-soft); font-style: italic; margin: 0 0 0.75rem; }
 .prompt-responses { border-top: 1.5px solid var(--line); }
+.prompt-loading { color: var(--ink-soft); font-size: 0.9rem; }
 /* Each answer as its own tile rather than a hairline-divided row — a long
    list of bare text lines was reading as one undifferentiated block. Not
    using the shared `.plain` reset here: it beats this rule's specificity
@@ -543,6 +533,26 @@ textarea { min-height: 90px; resize: vertical; }
 .response-username { font-weight: 600; color: var(--ink); overflow-wrap: break-word; }
 .response-time { font-size: 0.75rem; color: var(--ink-soft); white-space: nowrap; }
 .response-text { margin: 0.2rem 0 0; color: var(--ink); overflow-wrap: break-word; }
+
+/* The signed-in user's own answer: a green-tinted border instead of the
+   default neutral one, so "You" reads as visually distinct at a glance,
+   not just from the label text. */
+.prompt-response-list li.response-mine { border-color: var(--green); background: var(--green-soft); }
+.response-edit-btn {
+  margin-left: auto;
+  border: none;
+  background: none;
+  padding: 0 0.2rem;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.response-edit-btn:hover { background: none; opacity: 0.7; }
+/* Overrides the base row's `align-items: flex-start` (meant for the
+   avatar+text layout) — without `stretch`, the form/textarea shrink to
+   their content width instead of filling the tile. */
+.prompt-response-list li.response-editing { flex-direction: column; align-items: stretch; }
+.prompt-response-list li.response-editing form { width: 100%; }
+.prompt-response-list li.response-editing textarea { margin: 0 0 0.35rem; }
 
 .prompt-back { margin-bottom: 1rem; }
 
