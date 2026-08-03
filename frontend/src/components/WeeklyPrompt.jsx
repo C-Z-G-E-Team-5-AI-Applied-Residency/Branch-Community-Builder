@@ -28,6 +28,25 @@ function formatResponseTime(dateStr) {
     : date.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
+// The textarea + character counter every answer form shares — the two call
+// sites differ only in aria-label/placeholder and their surrounding <form>'s
+// submit handler and button row, so only this shared bit is factored out.
+function AnswerField({ label, placeholder, draft, onChange, submitting }) {
+  return (
+    <>
+      <textarea
+        value={draft}
+        onChange={(e) => onChange(e.target.value)}
+        placeholder={placeholder}
+        aria-label={label}
+        maxLength={500}
+        disabled={submitting}
+      />
+      <p className="prompt-char-count">{draft.length}/500</p>
+    </>
+  );
+}
+
 // Discord-style row: initial-letter avatar, username + timestamp on one
 // line, answer text below it. The signed-in user's own row shows "You" and
 // gets a pencil button in place of the timestamp's neighbor.
@@ -54,8 +73,10 @@ function ResponseTile({ username, displayName, text, time, isMine, onEdit }) {
 }
 
 // prompt: {prompt_id, question_text, week_start, has_responded, my_response_id}
-// canRespond: whether a not-yet-answered prompt may be answered here (true
-// for the current week, false for a past one — past weeks are closed).
+// canRespond: whether this prompt is still open — gates both answering it
+// for the first time and editing an existing answer (true for the current
+// week, false for a past one; past weeks are fully closed, even to their
+// own answerer).
 // onAnswered: called after a first-time submit so the parent can refresh
 // has_responded/my_response_id (this component doesn't own that prop).
 export default function WeeklyPrompt({ prompt, canRespond, onAnswered }) {
@@ -71,6 +92,7 @@ export default function WeeklyPrompt({ prompt, canRespond, onAnswered }) {
     setResponses([]);
     setResponsesLoaded(false);
     setEditingMine(false);
+    setDraft("");
     setNotice(null);
     if (prompt.has_responded) {
       api
@@ -136,17 +158,15 @@ export default function WeeklyPrompt({ prompt, canRespond, onAnswered }) {
 
       {!prompt.has_responded && canRespond && (
         <>
-          <p className="prompt-empty-hint">No one's answered yet — be the first!</p>
+          <p className="prompt-empty-hint">Answer to see everyone else's answers.</p>
           <form className="prompt-form" onSubmit={onSubmit}>
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
+            <AnswerField
+              label="Your answer"
               placeholder="Share your answer…"
-              aria-label="Your answer"
-              maxLength={500}
-              disabled={submitting}
+              draft={draft}
+              onChange={setDraft}
+              submitting={submitting}
             />
-            <p className="prompt-char-count">{draft.length}/500</p>
             <button type="submit" disabled={submitting}>
               {submitting ? "Saving…" : "Submit"}
             </button>
@@ -169,19 +189,24 @@ export default function WeeklyPrompt({ prompt, canRespond, onAnswered }) {
                 return (
                   <li key={r.username} className="response-mine response-editing">
                     <form onSubmit={onSaveEdit}>
-                      <textarea
-                        value={draft}
-                        onChange={(e) => setDraft(e.target.value)}
-                        aria-label="Edit your answer"
-                        maxLength={500}
-                        disabled={submitting}
+                      <AnswerField
+                        label="Edit your answer"
+                        draft={draft}
+                        onChange={setDraft}
+                        submitting={submitting}
                       />
-                      <p className="prompt-char-count">{draft.length}/500</p>
                       <div className="prompt-form-actions">
                         <button type="submit" disabled={submitting}>
                           {submitting ? "Saving…" : "Save"}
                         </button>
-                        <button type="button" onClick={() => setEditingMine(false)} disabled={submitting}>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setEditingMine(false);
+                            setDraft("");
+                          }}
+                          disabled={submitting}
+                        >
                           Cancel
                         </button>
                       </div>
@@ -189,6 +214,9 @@ export default function WeeklyPrompt({ prompt, canRespond, onAnswered }) {
                   </li>
                 );
               }
+              // Editing (and the "mine" highlight) is gated on canRespond, not
+              // just isMine — a past week is closed even to its own answerer,
+              // matching canRespond={false} already blocking new answers there.
               return (
                 <ResponseTile
                   key={r.username}
@@ -196,8 +224,8 @@ export default function WeeklyPrompt({ prompt, canRespond, onAnswered }) {
                   displayName={isMine ? "You" : r.username}
                   text={r.response_text}
                   time={r.updated_at}
-                  isMine={isMine}
-                  onEdit={isMine ? startEdit : undefined}
+                  isMine={isMine && canRespond}
+                  onEdit={isMine && canRespond ? startEdit : undefined}
                 />
               );
             })}

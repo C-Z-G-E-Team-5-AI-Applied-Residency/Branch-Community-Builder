@@ -40,8 +40,10 @@ export default function Prompts() {
       <div className="prompt-tabs" role="tablist">
         <button
           type="button"
+          id="prompt-tab-current"
           role="tab"
           aria-selected={tab === "current"}
+          aria-controls="prompt-panel-current"
           className={tab === "current" ? "is-active" : ""}
           onClick={() => {
             setTab("current");
@@ -52,8 +54,10 @@ export default function Prompts() {
         </button>
         <button
           type="button"
+          id="prompt-tab-past"
           role="tab"
           aria-selected={tab === "past"}
+          aria-controls="prompt-panel-past"
           className={tab === "past" ? "is-active" : ""}
           onClick={() => {
             setTab("past");
@@ -66,35 +70,41 @@ export default function Prompts() {
 
       {notice && <p role="alert">{notice}</p>}
 
-      {tab === "current" && currentPrompt && (
-        <section className="card prompt-card">
-          <WeeklyPrompt prompt={currentPrompt} canRespond onAnswered={loadCurrent} />
-        </section>
+      {tab === "current" && (
+        <div id="prompt-panel-current" role="tabpanel" aria-labelledby="prompt-tab-current">
+          {currentPrompt && (
+            <section className="card prompt-card">
+              <WeeklyPrompt prompt={currentPrompt} canRespond onAnswered={loadCurrent} />
+            </section>
+          )}
+        </div>
       )}
 
-      {tab === "past" && !selectedPast && (
-        <>
-          {pastPrompts.length === 0 && <p>No past prompts yet.</p>}
-          <ul className="prompt-list">
-            {pastPrompts.map((p) => (
-              <li key={p.prompt_id}>
-                <button type="button" className="prompt-list-item" onClick={() => onSelectPast(p.prompt_id)}>
-                  <span className="prompt-week">{formatWeekStart(p.week_start)}</span>
-                  <span>{p.question_text}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </>
-      )}
-
-      {tab === "past" && selectedPast && (
-        <section className="card prompt-card">
-          <button type="button" className="prompt-back" onClick={() => setSelectedPast(null)}>
-            ← Back to past prompts
-          </button>
-          <WeeklyPrompt prompt={selectedPast} canRespond={false} />
-        </section>
+      {tab === "past" && (
+        <div id="prompt-panel-past" role="tabpanel" aria-labelledby="prompt-tab-past">
+          {!selectedPast ? (
+            <>
+              {pastPrompts.length === 0 && <p>No past prompts yet.</p>}
+              <ul className="prompt-list">
+                {pastPrompts.map((p) => (
+                  <li key={p.prompt_id}>
+                    <button type="button" className="prompt-list-item" onClick={() => onSelectPast(p.prompt_id)}>
+                      <span className="prompt-week">{formatWeekStart(p.week_start)}</span>
+                      <span>{p.question_text}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <section className="card prompt-card">
+              <button type="button" className="prompt-back" onClick={() => setSelectedPast(null)}>
+                ← Back to past prompts
+              </button>
+              <WeeklyPrompt prompt={selectedPast} canRespond={false} />
+            </section>
+          )}
+        </div>
       )}
     </main>
   );
