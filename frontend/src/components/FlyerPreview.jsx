@@ -85,7 +85,13 @@ function PatternTile({ backgroundId, accent }) {
   return <path d="M12 30c2-10 10-16 18-16s16 6 18 16c-8 6-28 6-36 0z" fill={accent} />;
 }
 
-function useBackgroundFill(background, uid) {
+// SVG <text> doesn't wrap — an unclipped long title runs off the 600-unit
+// viewBox and gets cut off by the viewport instead of failing gracefully.
+function truncateTitle(title, max = 28) {
+  return title.length > max ? `${title.slice(0, max - 1).trimEnd()}…` : title;
+}
+
+function backgroundFill(background, uid) {
   if (background.kind === "solid") return { defs: null, fill: background.value };
 
   if (background.kind === "gradient") {
@@ -197,9 +203,9 @@ export default function FlyerPreview({
   const template = FLYER_TEMPLATES_BY_ID[templateId] || FLYER_TEMPLATES_BY_ID.classic;
   const background = FLYER_BACKGROUNDS_BY_ID[backgroundId] || FLYER_BACKGROUNDS_BY_ID["solid-cream"];
   const font = FLYER_FONTS_BY_ID[fontId] || FLYER_FONTS_BY_ID["serif-classic"];
-  const { defs, fill } = useBackgroundFill(background, uid);
+  const { defs, fill } = backgroundFill(background, uid);
   const color = textColor || "#3f4a3a";
-  const commonProps = { fill, color, fontFamily: font.css, title, date, location };
+  const commonProps = { fill, color, fontFamily: font.css, title: truncateTitle(title), date, location };
 
   return (
     <svg viewBox="0 0 600 800" className={className} role="img" aria-label={`${title} flyer`}>

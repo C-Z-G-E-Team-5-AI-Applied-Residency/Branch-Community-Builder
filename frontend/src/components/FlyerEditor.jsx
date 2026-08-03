@@ -14,6 +14,7 @@ import FlyerPreview from "./FlyerPreview.jsx";
 
 export default function FlyerEditor({ event, onSaved }) {
   const current = resolveFlyer(event);
+  const hasUpload = current.kind === "upload";
   const initial = current.kind === "template"
     ? current
     : { templateId: "classic", ...FLYER_TEMPLATE_DEFAULTS.classic };
@@ -36,11 +37,14 @@ export default function FlyerEditor({ event, onSaved }) {
   }
 
   async function onSave() {
+    if (hasUpload && !window.confirm("Saving a template style will replace your uploaded flyer, and it can't be recovered. Continue?")) {
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
       await api.selectFlyerTemplate(event.event_id, templateId, { backgroundId, textColor, fontId });
-      onSaved();
+      onSaved?.();
     } catch (err) {
       setError(err.message);
     } finally {
@@ -112,8 +116,11 @@ export default function FlyerEditor({ event, onSaved }) {
         className="flyer-editor-preview"
       />
 
+      {hasUpload && (
+        <p role="alert">Saving a template style will replace your uploaded flyer, and it can't be recovered.</p>
+      )}
       <button type="button" onClick={onSave} disabled={saving}>
-        {saving ? "Saving…" : "Save flyer style"}
+        {saving ? "Saving…" : hasUpload ? "Replace uploaded flyer" : "Save flyer style"}
       </button>
       {error && <p role="alert">{error}</p>}
     </div>
