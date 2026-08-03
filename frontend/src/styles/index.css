@@ -9,6 +9,7 @@
   --green: #7c9a63;         /* primary buttons / pins */
   --green-dark: #55703f;
   --green-soft: #e2e8d5;    /* button hover / chips */
+  --accent: #a05a2c;        /* warm highlight — About page role labels */
   --radius: 10px;
 
   /* legacy names still used by components */
@@ -695,6 +696,97 @@ ul.plain li { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
 @media (max-width: 820px) {
   .split, .split-wide-left { grid-template-columns: 1fr; }
   .map-shell .leaflet-container { height: 48vh; }
+}
+
+/* ---------- about page ---------- */
+.about-page, .contact-page { padding-left: 4rem; padding-right: 4rem; }
+.about-page section, .about-page > p { margin-bottom: 2.5rem; }
+.about-page h2 { margin-bottom: 1rem; }
+.about-cover { height: 260px; margin-bottom: 1.5rem; }
+.persona-card { margin-bottom: 1rem; }
+
+.about-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  text-align: center;
+  padding: 3.5rem 0 4rem;
+}
+.hero-logo {
+  font-size: 3.2rem;
+  letter-spacing: 0.03em;
+  animation: hero-logo-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.about-hero .hero-actions {
+  display: flex;
+  gap: 1rem;
+  animation: hero-actions-in 0.6s ease-out 0.35s both;
+}
+.about-hero .hero-actions .btn { font-size: 1.05rem; padding: 0.65rem 1.6rem; }
+
+@keyframes hero-logo-in {
+  from { opacity: 0; transform: scale(0.7) translateY(-14px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes hero-actions-in {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-logo, .about-hero .hero-actions { animation: none; }
+}
+
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.75rem;
+}
+.team-member h3 { margin: 0 0 0.15rem; font-size: 1.1rem; }
+.team-role {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.6rem;
+}
+.team-member p:not(.team-role) { color: var(--ink-soft); font-size: 0.92rem; margin: 0; }
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.feature-card h3 { margin: 0 0 0.4rem; font-size: 1rem; }
+.feature-card p { margin: 0; color: var(--ink-soft); font-size: 0.92rem; }
+.feature-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+.feature-card:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(74, 68, 51, 0.12); }
+
+/* Sections start faded/offset and animate in the first time they cross the
+   viewport (see the Reveal component in About.jsx) — never re-triggers on
+   scroll-back since the observer disconnects after the first intersection. */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.reveal-visible { opacity: 1; transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
+
+@media (max-width: 820px) {
+  .about-page, .contact-page { padding-left: 2rem; padding-right: 2rem; }
+}
+@media (max-width: 640px) {
+  .about-page, .contact-page { padding-left: 1.25rem; padding-right: 1.25rem; }
+  .about-hero { padding: 2rem 0 2.5rem; gap: 1rem; }
+  .hero-logo { font-size: 2.1rem; }
+  .about-hero .hero-actions { flex-direction: column; width: 100%; }
+  .about-hero .hero-actions .btn { width: 100%; text-align: center; }
+  .team-grid, .feature-grid { grid-template-columns: 1fr; }
 }
 
 /* ---------- flyer view/print modal ---------- */

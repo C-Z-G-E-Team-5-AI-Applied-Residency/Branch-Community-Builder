@@ -15,6 +15,8 @@ import HostCheckIn from "./pages/HostCheckIn.jsx";
 import Review from "./pages/Review.jsx";
 import Metrics from "./pages/Metrics.jsx";
 import Prompts from "./pages/Prompts.jsx";
+import About from "./pages/About.jsx";
+import Contact from "./pages/Contact.jsx";
 
 // Everything except sign-in/sign-up requires a signed-in user; visitors
 // without a session land on the sign-in page.
@@ -31,6 +33,8 @@ export default function App() {
         <Route path="/" element={<Navigate to="/discover" replace />} />
         <Route path="/signin" element={<SignIn />} />
         <Route path="/signup" element={<SignUp />} />
+        <Route path="/about" element={<About />} />
+        <Route path="/contact" element={<Contact />} />
         <Route path="/discover" element={<RequireAuth><Discover /></RequireAuth>} />
         <Route path="/events" element={<RequireAuth><Events /></RequireAuth>} />
         <Route path="/rsvps" element={<RequireAuth><RSVPs /></RequireAuth>} />
