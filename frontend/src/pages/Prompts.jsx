@@ -33,7 +33,7 @@ function ResponseTile({ username, text, time }) {
   return (
     <li>
       <span className="response-avatar" aria-hidden="true">
-        {username[0]?.toUpperCase()}
+        {username?.[0]?.toUpperCase()}
       </span>
       <div className="response-body">
         <div className="response-meta">
@@ -54,6 +54,7 @@ export default function Prompts() {
   const [draft, setDraft] = useState("");
   const [editing, setEditing] = useState(false);
   const [responses, setResponses] = useState([]);
+  const [responsesLoaded, setResponsesLoaded] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [notice, setNotice] = useState(null);
 
@@ -67,7 +68,12 @@ export default function Prompts() {
       .then((prompt) => {
         setCurrentPrompt(prompt);
         if (prompt.has_responded) {
-          api.getPromptResponses(prompt.prompt_id).then(setResponses).catch(() => setResponses([]));
+          setResponsesLoaded(false);
+          api
+            .getPromptResponses(prompt.prompt_id)
+            .then(setResponses)
+            .catch(() => setResponses([]))
+            .finally(() => setResponsesLoaded(true));
         }
       })
       .catch((err) => setNotice(err.message));
@@ -120,9 +126,11 @@ export default function Prompts() {
     <main className="prompt-page">
       <h1>Weekly Prompt</h1>
 
-      <div className="prompt-tabs">
+      <div className="prompt-tabs" role="tablist">
         <button
           type="button"
+          role="tab"
+          aria-selected={tab === "current"}
           className={tab === "current" ? "is-active" : ""}
           onClick={() => {
             setTab("current");
@@ -133,14 +141,19 @@ export default function Prompts() {
         </button>
         <button
           type="button"
+          role="tab"
+          aria-selected={tab === "past"}
           className={tab === "past" ? "is-active" : ""}
-          onClick={() => setTab("past")}
+          onClick={() => {
+            setTab("past");
+            setSelectedPast(null);
+          }}
         >
           Past
         </button>
       </div>
 
-      {notice && <p role="status">{notice}</p>}
+      {notice && <p role="alert">{notice}</p>}
 
       {tab === "current" && currentPrompt && (
         <section className="card prompt-card">
@@ -154,8 +167,10 @@ export default function Prompts() {
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder="Share your answer…"
                 aria-label="Your answer"
+                maxLength={500}
                 disabled={submitting}
               />
+              <p className="prompt-char-count">{draft.length}/500</p>
               <div className="prompt-form-actions">
                 <button type="submit" disabled={submitting}>
                   {submitting ? "Saving…" : editing ? "Save edit" : "Submit"}
@@ -174,6 +189,7 @@ export default function Prompts() {
               You've answered this week's prompt.
               <button
                 type="button"
+                disabled={!responsesLoaded}
                 onClick={() => {
                   // The list is username + text only (no response_id), so find
                   // "my" row by matching the signed-in username.
@@ -191,8 +207,8 @@ export default function Prompts() {
             <div className="prompt-responses">
               <h3>Everyone's answers</h3>
               <ul className="prompt-response-list">
-                {responses.map((r, i) => (
-                  <ResponseTile key={i} username={r.username} text={r.response_text} time={r.updated_at} />
+                {responses.map((r) => (
+                  <ResponseTile key={r.username} username={r.username} text={r.response_text} time={r.updated_at} />
                 ))}
               </ul>
             </div>
@@ -228,8 +244,8 @@ export default function Prompts() {
             <div className="prompt-responses">
               <h3>Everyone's answers</h3>
               <ul className="prompt-response-list">
-                {pastResponses.map((r, i) => (
-                  <ResponseTile key={i} username={r.username} text={r.response_text} time={r.updated_at} />
+                {pastResponses.map((r) => (
+                  <ResponseTile key={r.username} username={r.username} text={r.response_text} time={r.updated_at} />
                 ))}
               </ul>
             </div>

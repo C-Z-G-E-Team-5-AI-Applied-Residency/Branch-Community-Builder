@@ -486,7 +486,8 @@ textarea { min-height: 90px; resize: vertical; }
 .prompt-card h2 { margin: 0.2rem 0 1.1rem; line-height: 1.35; }
 .prompt-card h3 { margin: 1.75rem 0 0.75rem; font-size: 1rem; }
 .prompt-week { color: var(--ink-soft); font-size: 0.8rem; letter-spacing: 0.02em; text-transform: uppercase; margin: 0; }
-.prompt-form textarea { margin: 0 0 0.75rem; }
+.prompt-form textarea { margin: 0 0 0.35rem; }
+.prompt-char-count { margin: 0 0 0.75rem; color: var(--ink-soft); font-size: 0.8rem; text-align: right; }
 .prompt-form-actions { display: flex; gap: 0.5rem; }
 .prompt-meta {
   display: flex;
