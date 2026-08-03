@@ -3,7 +3,8 @@
 // clicking the backdrop.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
-import { api, currentUser } from "../api/client.js";
+import { api } from "../api/client.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import { formatEventDateTime } from "../formatDate.js";
 import QRScanner from "./QRScanner.jsx";
 
@@ -40,7 +41,7 @@ function formatCheckInOpensNotice(opensAt) {
 }
 
 export default function EventDetailModal({ eventId, onClose }) {
-  const me = currentUser();
+  const me = useAuth();
   const [event, setEvent] = useState(null);
   const [rsvps, setRsvps] = useState([]);
   const [scanning, setScanning] = useState(false);
@@ -64,10 +65,10 @@ export default function EventDetailModal({ eventId, onClose }) {
     ]);
   }, [eventId]);
 
-  // load() returns a promise (so onRsvp/onCancel/onScan can await a refresh)
-  // — don't hand that promise to useEffect directly, or React will try to
-  // call it as a cleanup function on unmount.
   useEffect(() => {
+    // load() now returns a promise (so actions can await a refresh) — don't
+    // pass it directly as the effect callback, or React stores that promise
+    // as the cleanup function and crashes calling it on unmount.
     load();
   }, [load]);
 

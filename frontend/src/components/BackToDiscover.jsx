@@ -3,7 +3,7 @@
 // anywhere without the caller needing to check the route.
 import { Link, useLocation } from "react-router-dom";
 
-const PAGES = ["/events", "/rsvps"];
+const PAGES = ["/events", "/rsvps", "/prompts"];
 
 export default function BackToDiscover() {
   const { pathname } = useLocation();

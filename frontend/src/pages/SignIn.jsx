@@ -25,7 +25,7 @@ export default function SignIn() {
           .catch((err) => err.status !== 404);
       }
       if (hasProfile) navigate("/discover");
-      else navigate("/signup", { state: { step: "profile" } });
+      else navigate("/signup?step=profile");
     } catch (err) {
       setError(err.message);
     }

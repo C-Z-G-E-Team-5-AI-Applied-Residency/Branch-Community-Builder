@@ -2,14 +2,22 @@
 // Signed in: Profile / My Events / My RSVPs / + Create Event all live on the
 // Discover map's own overlay nav now (see BackToDiscover.jsx for the
 // reverse trip back here). Sign out lives on the profile page instead.
-// Signed out: About / Contact, plus Sign In (hidden on the sign-in page itself).
+// About / Contact show up while signed out, while actually on those
+// pages, or on the sign-in page itself (its own landing audience, even if
+// a stale/signed-in session lands there) — so there's always a way in
+// regardless of auth state. Sign In shows signed-out (and not on the
+// sign-in page itself).
 import { useEffect, useRef } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { currentUser } from "../api/client.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import BackToDiscover from "./BackToDiscover.jsx";
 
 export default function Header() {
-  const me = currentUser();
+  // Signup/login happen without a route change (SignUp is a single-page step
+  // flow), so useLocation() re-renders alone don't cover it — useAuth() gives
+  // us live auth state (it listens for the "branch:user" event client.js fires
+  // after each localStorage write) so the nav updates without a refresh.
+  const me = useAuth();
   const { pathname } = useLocation();
   const headerRef = useRef(null);
 
@@ -31,15 +39,17 @@ export default function Header() {
     <header className="app-header" ref={headerRef}>
       <Link to="/discover" className="brand">[ BRANCH… ]</Link>
       <BackToDiscover />
-      {!me && (
-        <nav>
-          <a href="#about">About</a>
-          <a href="#contact">Contact</a>
-          {pathname !== "/signin" && (
-            <Link to="/signin" className="btn btn-primary">Sign In</Link>
-          )}
-        </nav>
-      )}
+      <nav>
+        {(!me || pathname === "/about" || pathname === "/contact" || pathname === "/signin") && (
+          <>
+            <Link to="/about">About</Link>
+            <Link to="/contact">Contact</Link>
+          </>
+        )}
+        {!me && pathname !== "/signin" && (
+          <Link to="/signin" className="btn btn-primary">Sign In</Link>
+        )}
+      </nav>
     </header>
   );
 }

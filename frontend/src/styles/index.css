@@ -9,6 +9,7 @@
   --green: #7c9a63;         /* primary buttons / pins */
   --green-dark: #55703f;
   --green-soft: #e2e8d5;    /* button hover / chips */
+  --accent: #a05a2c;        /* warm highlight — About page role labels */
   --radius: 10px;
 
   /* legacy names still used by components */
@@ -79,11 +80,21 @@ a { color: var(--green-dark); }
   max-width: 1100px;
   margin: 0 auto;
   padding: 1rem 1.5rem 2rem;
-  text-align: right;
+  text-align: center;
   color: var(--ink-soft);
   font-size: 0.85rem;
 }
-.app-footer a { color: var(--ink-soft); text-decoration: none; display: block; }
+/* text-decoration-color transparent -> ink-soft (not text-decoration: none/underline)
+   so the hover underline is a color transition, not an add/remove — it never
+   changes the link's box and can't shift surrounding layout. */
+.app-footer a {
+  color: var(--ink-soft);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  transition: text-decoration-color 0.15s ease;
+  display: block;
+}
+.app-footer a:hover { text-decoration-color: var(--ink-soft); }
 
 /* ---------- buttons ---------- */
 button, .btn {
@@ -253,18 +264,24 @@ textarea { min-height: 90px; resize: vertical; }
    layer over the map. It stays position:absolute (with z-index) at every
    width so it always paints above the leaflet-container above — its
    children can freely switch between individually-absolute (wide screens)
-   and plain static/stacked (narrow screens, see max-width:900px) without
+   and plain static/stacked (narrow screens, see max-width:1050px) without
    ever getting painted underneath the map. */
 .map-toolbar {
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
+  /* Every child here is itself position:absolute, so none contribute to this
+     element's content height — without an explicit height, .ai-rail's
+     top+bottom (meant to stretch it full-height) resolve against an
+     indefinite containing-block height and it shrink-to-fits its content
+     instead, rendering far shorter than intended. */
+  height: 100%;
   z-index: 1000; /* above leaflet panes */
   pointer-events: none;
 }
 .map-toolbar > * { pointer-events: auto; }
-/* Only meaningful at narrow widths (see max-width:900px); hidden on wide
+/* Only meaningful at narrow widths (see max-width:1050px); hidden on wide
    screens where the nav/search bars are always visible directly. */
 .toolbar-dropdown-toggles { display: none; }
 .map-nav-overlay {
@@ -381,9 +398,19 @@ textarea { min-height: 90px; resize: vertical; }
 .map-shell .leaflet-container { height: 62vh; min-height: 420px; width: 100%; }
 .ai-rail {
   position: absolute;
-  top: 0.9rem;
+  /* Not 0.9rem — that's the same row .map-nav-overlay sits in, and this
+     panel (290px, unlike the small closed toggle bubble) is wide enough to
+     overlap it there. Guessed rem offsets (4rem, then 5.5rem) kept reading
+     as too close/overlapping since the nav pill's real height isn't a fixed
+     constant — use its actual measured height (--nav-overlay-h, published by
+     Discover.jsx) plus its own 0.9rem top offset and a clear gap. */
+  top: calc(0.9rem + var(--nav-overlay-h, 2.6rem) + 2.7rem);
   right: 0.9rem;
-  bottom: 0.9rem;
+  /* Not 0.9rem — Leaflet's attribution control ("Leaflet | © OpenStreetMap
+     contributors © CARTO") sits in the map's bottom-right corner too, and
+     0.9rem wasn't enough clearance to keep the panel's rounded bottom edge
+     from landing right on top of it. */
+  bottom: 2rem;
   width: 290px;
   z-index: 1000; /* above leaflet panes */
   background: var(--panel);
@@ -427,11 +454,14 @@ textarea { min-height: 90px; resize: vertical; }
 }
 .ai-rail-toggle:hover { background: var(--green-soft); }
 
+/* Same dock as .ai-rail (they're mutually exclusive, never shown together)
+   so it shares its overlap-avoidance math with the nav pill and Leaflet's
+   attribution control — see the comments on .ai-rail above. */
 .flyer-rail {
   position: absolute;
-  top: 0.9rem;
+  top: calc(0.9rem + var(--nav-overlay-h, 2.6rem) + 2.7rem);
   right: 0.9rem;
-  bottom: 0.9rem;
+  bottom: 2rem;
   width: 330px;
   z-index: 1000; /* above leaflet panes */
   background: var(--panel);
@@ -457,6 +487,122 @@ textarea { min-height: 90px; resize: vertical; }
 }
 .flyer-rail-close:hover { background: var(--green-soft); }
 
+.announcement-form { display: flex; gap: 0.5rem; align-items: center; margin: 0.75rem 0 1rem; }
+.announcement-form input { margin-top: 0; flex: 1; }
+.announcement-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.75rem;
+}
+.announcement-list em { color: var(--ink-soft); font-size: 0.85rem; white-space: nowrap; }
+
+/* ---------- weekly prompt ---------- */
+/* Narrower than the default main (1100px): a wide near-empty card read as
+   dead whitespace with just a question + textarea in it, so this page gets
+   its own tighter column instead. */
+.prompt-page { max-width: 640px; }
+.prompt-tabs { display: flex; gap: 0.4rem; margin-bottom: 1.25rem; }
+.prompt-tabs button {
+  border-radius: 999px;
+  padding: 0.4rem 1.1rem;
+}
+/* Current vs. Past: the active tab gets the same accent as primary buttons,
+   so "this week's" reads as distinct from the archive at a glance. */
+.prompt-tabs button.is-active {
+  background: var(--green);
+  border-color: var(--green-dark);
+  color: #fff;
+  font-weight: 600;
+}
+.prompt-card { padding: 1.5rem 1.75rem; }
+.prompt-card h2 { margin: 0.2rem 0 1.1rem; line-height: 1.35; }
+.prompt-card h3 { margin: 1.75rem 0 0.75rem; font-size: 1rem; }
+.prompt-week { color: var(--ink-soft); font-size: 0.8rem; letter-spacing: 0.02em; text-transform: uppercase; margin: 0; }
+.prompt-form textarea { margin: 0 0 0.35rem; }
+.prompt-char-count { margin: 0 0 0.75rem; color: var(--ink-soft); font-size: 0.8rem; text-align: right; }
+.prompt-form-actions { display: flex; gap: 0.5rem; }
+.prompt-empty-hint { color: var(--ink-soft); font-style: italic; margin: 0 0 0.75rem; }
+.prompt-responses { border-top: 1.5px solid var(--line); }
+.prompt-loading { color: var(--ink-soft); font-size: 0.9rem; }
+/* Each answer as its own tile rather than a hairline-divided row — a long
+   list of bare text lines was reading as one undifferentiated block. Not
+   using the shared `.plain` reset here: it beats this rule's specificity
+   (two classes vs one) and was silently zeroing out its left/right padding. */
+.prompt-response-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+.prompt-response-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  background: var(--panel-2);
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+}
+.response-avatar {
+  flex: none;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.response-body { flex: 1; min-width: 0; }
+/* flex-wrap so a long "Mon DD, H:MM PM" timestamp drops to its own line as a
+   whole unit on narrow screens, instead of the no-wrap default splitting it
+   mid-phrase (e.g. "9:40" stranded from "PM"). */
+.response-meta { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
+.response-username { font-weight: 600; color: var(--ink); overflow-wrap: break-word; }
+.response-time { font-size: 0.75rem; color: var(--ink-soft); white-space: nowrap; }
+.response-text { margin: 0.2rem 0 0; color: var(--ink); overflow-wrap: break-word; }
+
+/* The signed-in user's own answer: a green-tinted border instead of the
+   default neutral one, so "You" reads as visually distinct at a glance,
+   not just from the label text. */
+.prompt-response-list li.response-mine { border-color: var(--green); background: var(--green-soft); }
+.response-edit-btn {
+  margin-left: auto;
+  border: none;
+  background: none;
+  padding: 0 0.2rem;
+  font-size: 0.85rem;
+  line-height: 1;
+}
+.response-edit-btn:hover { background: none; opacity: 0.7; }
+/* Overrides the base row's `align-items: flex-start` (meant for the
+   avatar+text layout) — without `stretch`, the form/textarea shrink to
+   their content width instead of filling the tile. */
+.prompt-response-list li.response-editing { flex-direction: column; align-items: stretch; }
+.prompt-response-list li.response-editing form { width: 100%; }
+.prompt-response-list li.response-editing textarea { margin: 0 0 0.35rem; }
+
+.prompt-back { margin-bottom: 1rem; }
+
+.prompt-list { list-style: none; padding-left: 0; margin: 0; }
+.prompt-list-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  width: 100%;
+  text-align: left;
+  background: var(--panel-2);
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 0.5rem;
+}
+.prompt-list-item:hover { background: var(--green-soft); }
+
 .chip {
   display: inline-block;
   background: var(--green-soft);
@@ -467,6 +613,87 @@ textarea { min-height: 90px; resize: vertical; }
   margin: 0 0.35rem 0.35rem 0;
   font-size: 0.85rem;
 }
+.chip-list { display: flex; flex-wrap: wrap; list-style: none; padding: 0; margin: 0; }
+
+/* Visually hidden but still focusable/clickable — used to keep a native
+   input (e.g. file pickers) working for a11y/keyboard use while a styled
+   label/button drives its visible appearance. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.file-field { margin-bottom: 0.9rem; }
+.file-field-label { display: block; margin-bottom: 0.3rem; font-size: 0.92rem; font-weight: 600; }
+/* The real input is .visually-hidden, not display:none, specifically so it
+   stays tab-reachable — but that means its own focus ring renders on an
+   invisible 1px box. Move the ring to the label that's actually on screen. */
+.file-field:focus-within .btn {
+  outline: 2px solid var(--green-dark);
+  outline-offset: 2px;
+}
+
+/* ---------- community standing page ---------- */
+.standing-carousel {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 1.25rem;
+  overflow: hidden;
+}
+.standing-nav-btn {
+  width: 2.5rem;
+  height: 2.5rem;
+  border-radius: 50%;
+  border: 1.5px solid var(--line);
+  background: var(--panel);
+  font-size: 1.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+}
+.standing-nav-btn:hover { background: var(--green-soft); }
+
+.standing-card { flex: 1; }
+.standing-card h2 { margin-top: 0; }
+
+.standing-slide-right { animation: standing-slide-from-right 0.25s ease-out; }
+.standing-slide-left { animation: standing-slide-from-left 0.25s ease-out; }
+@keyframes standing-slide-from-right {
+  from { opacity: 0; transform: translateX(16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes standing-slide-from-left {
+  from { opacity: 0; transform: translateX(-16px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .standing-slide-right, .standing-slide-left { animation: none; }
+}
+.standing-city { color: var(--ink-soft); font-weight: 400; font-size: 0.9rem; }
+.standing-stat { font-size: 1rem; }
+.standing-hosted ul.plain li { border-bottom: none; padding: 0.2rem 0; color: var(--ink-soft); }
+
+.leader-bubble {
+  display: inline-block;
+  margin-top: 0.75rem;
+  background: var(--green);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.4rem 1rem;
+  font-weight: 600;
+}
+
+.standing-position { text-align: center; color: var(--ink-soft); font-size: 0.85rem; margin-top: 0.5rem; }
 
 /* ---------- avatar + crop dialog ---------- */
 .avatar {
@@ -513,6 +740,97 @@ ul.plain li { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
 @media (max-width: 820px) {
   .split, .split-wide-left { grid-template-columns: 1fr; }
   .map-shell .leaflet-container { height: 48vh; }
+}
+
+/* ---------- about page ---------- */
+.about-page, .contact-page { padding-left: 4rem; padding-right: 4rem; }
+.about-page section, .about-page > p { margin-bottom: 2.5rem; }
+.about-page h2 { margin-bottom: 1rem; }
+.about-cover { height: 260px; margin-bottom: 1.5rem; }
+.persona-card { margin-bottom: 1rem; }
+
+.about-hero {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.5rem;
+  text-align: center;
+  padding: 3.5rem 0 4rem;
+}
+.hero-logo {
+  font-size: 3.2rem;
+  letter-spacing: 0.03em;
+  animation: hero-logo-in 0.7s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.about-hero .hero-actions {
+  display: flex;
+  gap: 1rem;
+  animation: hero-actions-in 0.6s ease-out 0.35s both;
+}
+.about-hero .hero-actions .btn { font-size: 1.05rem; padding: 0.65rem 1.6rem; }
+
+@keyframes hero-logo-in {
+  from { opacity: 0; transform: scale(0.7) translateY(-14px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+@keyframes hero-actions-in {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .hero-logo, .about-hero .hero-actions { animation: none; }
+}
+
+.team-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.75rem;
+}
+.team-member h3 { margin: 0 0 0.15rem; font-size: 1.1rem; }
+.team-role {
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin: 0 0 0.6rem;
+}
+.team-member p:not(.team-role) { color: var(--ink-soft); font-size: 0.92rem; margin: 0; }
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+.feature-card h3 { margin: 0 0 0.4rem; font-size: 1rem; }
+.feature-card p { margin: 0; color: var(--ink-soft); font-size: 0.92rem; }
+.feature-card { transition: transform 0.2s ease, box-shadow 0.2s ease; }
+.feature-card:hover { transform: translateY(-3px); box-shadow: 0 6px 16px rgba(74, 68, 51, 0.12); }
+
+/* Sections start faded/offset and animate in the first time they cross the
+   viewport (see the Reveal component in About.jsx) — never re-triggers on
+   scroll-back since the observer disconnects after the first intersection. */
+.reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.reveal-visible { opacity: 1; transform: translateY(0); }
+@media (prefers-reduced-motion: reduce) {
+  .reveal { opacity: 1; transform: none; transition: none; }
+}
+
+@media (max-width: 820px) {
+  .about-page, .contact-page { padding-left: 2rem; padding-right: 2rem; }
+}
+@media (max-width: 640px) {
+  .about-page, .contact-page { padding-left: 1.25rem; padding-right: 1.25rem; }
+  .about-hero { padding: 2rem 0 2.5rem; gap: 1rem; }
+  .hero-logo { font-size: 2.1rem; }
+  .about-hero .hero-actions { flex-direction: column; width: 100%; }
+  .about-hero .hero-actions .btn { width: 100%; text-align: center; }
+  .team-grid, .feature-grid { grid-template-columns: 1fr; }
 }
 
 /* ---------- flyer view/print modal ---------- */
@@ -610,8 +928,12 @@ ul.plain li { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
    longer all float independently without colliding. Turn .map-toolbar into
    a plain stacked column instead — its children go from individually
    absolute-positioned to static/full-width, so they stack in DOM order
-   with real (not guessed) heights and can never overlap each other. */
-@media (max-width: 900px) {
+   with real (not guessed) heights and can never overlap each other.
+   1050 (not 900) — the search pill and nav pill actually collide starting
+   around 935px, since both are independently absolute-positioned and don't
+   know about each other's width; 900 left a ~35-90px dead zone where they
+   overlapped before this rule kicked in to stack them safely. */
+@media (max-width: 1050px) {
   .map-toolbar {
     position: absolute;
     display: flex;
@@ -623,9 +945,7 @@ ul.plain li { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
     padding: 0.75rem 0.75rem 0.75rem 3.5rem;
   }
   .map-nav-overlay,
-  .map-search-overlay,
-  .ai-rail,
-  .flyer-rail {
+  .map-search-overlay {
     position: static;
     width: 100%;
     max-width: none;
@@ -635,7 +955,20 @@ ul.plain li { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
   .map-search-overlay form { flex-direction: column; align-items: stretch; }
   .map-search-overlay input { width: 100%; }
   .ai-rail-toggle { position: static; align-self: flex-end; }
-  .ai-rail, .flyer-rail { max-height: 60vh; }
+  /* relative, not static — .ai-rail-close/.flyer-rail-close are
+     position:absolute and need this panel (not the whole .map-toolbar) as
+     their containing block, or the X jumps up to float next to the
+     dropdown toggles instead. */
+  .ai-rail,
+  .flyer-rail {
+    position: relative;
+    width: 100%;
+    max-width: none;
+    top: auto;
+    right: auto;
+    bottom: auto;
+    max-height: 60vh;
+  }
 
   /* Collapse the nav pill and search bar behind their own dropdown toggles
      to save vertical space — the AI bubble/rail is unaffected and keeps

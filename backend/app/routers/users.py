@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import delete, func, select
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -8,13 +9,16 @@ from app.database import get_db
 from app.models.community_standing import CommunityStanding
 from app.models.event import Event
 from app.models.neighborhood import Neighborhood
+from app.models.profile import Profile
 from app.models.recommendation import Recommendation
+from app.models.recommendation_log import RecommendationLog
 from app.models.rsvp import Rsvp
 from app.models.tag import EventTag, Tag, UserInterest
 from app.models.user import User
 from app.schemas.tag import InterestCreate
 from app.schemas.user import UserOut
 from app.services.recommendations import generate_recommendations
+from app.services.standings import get_hosted_event_breakdown
 
 router = APIRouter(prefix="/api/users", tags=["users"])
 
@@ -140,6 +144,7 @@ def get_user_standings(user_id: int, db: Session = Depends(get_db)):
         .where(CommunityStanding.user_id == user_id)
         .order_by(CommunityStanding.events_hosted.desc(), CommunityStanding.events_attended.desc())
     ).all()
+    hosted_by_neighborhood = get_hosted_event_breakdown(db, user_id)
     return [
         {
             "standing_id": s.standing_id,
@@ -151,6 +156,7 @@ def get_user_standings(user_id: int, db: Session = Depends(get_db)):
             "events_attended": s.events_attended,
             "is_leader": s.is_leader,
             "updated_at": s.updated_at,
+            "hosted_events": hosted_by_neighborhood.get(s.neighborhood_id, []),
         }
         for s, name, city in rows
     ]
@@ -205,6 +211,11 @@ def refresh_user_recommendations(user_id: int, request: Request, db: Session = D
         .where(UserInterest.user_id == user_id)
     ).scalars().all()
 
+    # The user's free-text "why" (intent), weighed alongside interest tags.
+    intent = db.execute(
+        select(Profile.intent).where(Profile.user_id == user_id)
+    ).scalar_one_or_none()
+
     # Candidate pool: upcoming open events (not the user's own).
     # TODO(review): no geographic filter yet — consider radius around the
     # user's home zip once zip geocoding is available.
@@ -229,12 +240,13 @@ def refresh_user_recommendations(user_id: int, request: Request, db: Session = D
             "event_id": e.event_id,
             "title": e.title,
             "event_description": e.event_description,
+            "why": e.why,
             "tags": tags_by_event.get(e.event_id, []),
         }
         for e in events
     ]
 
-    results = generate_recommendations(list(interests), candidates)
+    results = generate_recommendations(list(interests), candidates, intent=intent)
 
     # Overwrite cache: delete-then-insert, honoring UNIQUE(user_id, event_id).
     valid_ids = {e.event_id for e in events}
@@ -246,6 +258,15 @@ def refresh_user_recommendations(user_id: int, request: Request, db: Session = D
             continue  # drop hallucinated or duplicate event ids
         seen.add(event_id)
         db.add(Recommendation(user_id=user_id, event_id=event_id, reason=item["reason"]))
+
+    # Also append to the permanent log (first time only) so we can measure
+    # recommendation -> check-in conversion even after the cache is overwritten.
+    if seen:
+        db.execute(
+            pg_insert(RecommendationLog)
+            .values([{"user_id": user_id, "event_id": eid} for eid in seen])
+            .on_conflict_do_nothing(index_elements=["user_id", "event_id"])
+        )
     db.commit()
 
     return _serialize_recommendations(db, user_id)

@@ -10,3 +10,4 @@ pydantic-settings
 itsdangerous          # session middleware
 python-multipart      # form-data parsing (profile picture upload)
 google-genai          # Gemini SDK
+pytest                 # test runner (backend/tests)

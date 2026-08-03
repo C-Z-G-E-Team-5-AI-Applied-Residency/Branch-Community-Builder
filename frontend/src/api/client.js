@@ -57,6 +57,10 @@ export function currentUser() {
 }
 function rememberUser(user) {
   localStorage.setItem(USER_KEY, JSON.stringify(user));
+  // localStorage alone doesn't trigger a re-render (and the storage event only
+  // fires in *other* tabs), so components that show the signed-in user (e.g.
+  // Header) need this to update immediately after signup/login in this tab.
+  window.dispatchEvent(new Event("branch:user"));
   return user;
 }
 
@@ -67,9 +71,10 @@ export const api = {
   login: (data) =>
     request("/api/auth/login", { method: "POST", body: data }).then(rememberUser),
   logout: () =>
-    request("/api/auth/logout", { method: "POST" }).finally(() =>
-      localStorage.removeItem(USER_KEY)
-    ),
+    request("/api/auth/logout", { method: "POST" }).finally(() => {
+      localStorage.removeItem(USER_KEY);
+      window.dispatchEvent(new Event("branch:user"));
+    }),
   // events
   listEvents: (filters = {}) => request(`/api/events${toQuery(filters)}`),
   getEvent: (id) => request(`/api/events/${id}`),
@@ -101,11 +106,18 @@ export const api = {
   deleteRsvp: (rsvpId) => request(`/api/rsvps/${rsvpId}`, { method: "DELETE" }),
   checkIn: (eventId, code) =>
     request(`/api/events/${eventId}/check-in`, { method: "POST", body: { code } }),
+  // announcements
+  getEventAnnouncements: (eventId) => request(`/api/events/${eventId}/announcements`),
+  postEventAnnouncement: (eventId, message) =>
+    request(`/api/events/${eventId}/announcements`, { method: "POST", body: { message } }),
+  deleteEventAnnouncement: (eventId, announcementId) =>
+    request(`/api/events/${eventId}/announcements/${announcementId}`, { method: "DELETE" }),
   // users / profiles
   getUser: (userId) => request(`/api/users/${userId}`),
   deleteAccount: (userId) =>
     request(`/api/users/${userId}`, { method: "DELETE" }).then((res) => {
       localStorage.removeItem(USER_KEY);
+      window.dispatchEvent(new Event("branch:user"));
       return res;
     }),
   getProfile: (userId) => request(`/api/profiles/${userId}`),
@@ -121,6 +133,10 @@ export const api = {
     request(`/api/profiles/${userId}/picture`, { method: "DELETE" }),
   // interests / tags
   listTags: () => request("/api/tags"),
+  suggestTags: (data) => request("/api/tags/suggest", { method: "POST", body: data }),
+  listPendingTags: () => request("/api/tags/pending"),
+  updateTag: (tagId, data) => request(`/api/tags/${tagId}`, { method: "PATCH", body: data }),
+  deleteTag: (tagId) => request(`/api/tags/${tagId}`, { method: "DELETE" }),
   getUserInterests: (userId) => request(`/api/users/${userId}/interests`),
   addInterest: (userId, tagId) =>
     request(`/api/users/${userId}/interests`, { method: "POST", body: { tag_id: tagId } }),
@@ -135,4 +151,47 @@ export const api = {
   getRecommendations: (userId) => request(`/api/users/${userId}/recommendations`),
   refreshRecommendations: (userId) =>
     request(`/api/users/${userId}/recommendations/refresh`, { method: "POST" }),
+  // moderation (admins only, except is-admin which any signed-in user may call)
+  getIsAdmin: () => request("/api/me/is-admin"),
+  listPendingReview: () => request("/api/events/pending-review"),
+  reviewEvent: (eventId, decision, note) =>
+    request(`/api/events/${eventId}/review`, { method: "PATCH", body: { decision, note } }),
+  // metrics (admin only)
+  getRecommendationConversion: () => request("/api/metrics/recommendation-conversion"),
+  // weekly prompts
+  getCurrentPrompt: () => request("/api/prompts/current"),
+  listPastPrompts: () => request("/api/prompts"),
+  getPrompt: (promptId) => request(`/api/prompts/${promptId}`),
+  submitPromptResponse: (responseText) =>
+    request("/api/prompts/current/responses", { method: "POST", body: { response_text: responseText } }),
+  editPromptResponse: (responseId, responseText) =>
+    request(`/api/prompt-responses/${responseId}`, { method: "PATCH", body: { response_text: responseText } }),
+  getPromptResponses: (promptId) => request(`/api/prompts/${promptId}/responses`),
 };
+
+// Same Nominatim service CreateEvent.jsx geocodes addresses through. Resolves
+// a ZIP to lat/lng, then reuses the API's point-in-boundary lookup (also used
+// by Discover's map) to find the neighborhood it falls in. Returns null on any
+// miss (no geocode match, no neighborhood at that point) so callers can fall
+// back to displaying the raw ZIP.
+const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
+
+// Nominatim's usage policy caps this at 1 request/second and can start
+// blocking heavy callers — cache by ZIP (module-level, so it survives
+// across profile views in this tab) since the same handful of ZIPs get
+// looked up repeatedly as people browse profiles/leaderboards.
+const zipNeighborhoodCache = new Map();
+
+export async function getNeighborhoodForZip(zip) {
+  if (!zip) return null;
+  if (zipNeighborhoodCache.has(zip)) return zipNeighborhoodCache.get(zip);
+  const params = new URLSearchParams({ postalcode: zip, country: "us", format: "json", limit: "1" });
+  const res = await fetch(`${NOMINATIM_URL}?${params}`);
+  if (!res.ok) return null;
+  const [hit] = await res.json();
+  if (!hit) return null;
+  const neighborhoods = await api.listNeighborhoods({ lat: parseFloat(hit.lat), lng: parseFloat(hit.lon) });
+  const name = neighborhoods[0]?.name ?? null;
+  zipNeighborhoodCache.set(zip, name);
+  return name;
+}

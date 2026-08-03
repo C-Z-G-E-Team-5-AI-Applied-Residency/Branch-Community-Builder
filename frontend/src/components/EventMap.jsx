@@ -9,6 +9,8 @@ import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
 // Vite doesn't serve Leaflet's default icon paths; point them at bundled assets.
+// Drop _getIconUrl first or Leaflet prepends its auto-detected imagePath to these URLs.
+delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
   iconRetinaUrl: markerIcon2x,
   iconUrl: markerIcon,
@@ -57,6 +59,9 @@ export default function EventMap({
   zoom = 12,
   height = 400,
   onSelectEvent,
+  onMarkerClick,
+  renderPopup,
+  showPopup = true,
 }) {
   return (
     <MapContainer center={center} zoom={zoom} style={{ height, width: "100%" }}>
@@ -66,27 +71,35 @@ export default function EventMap({
         url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
         attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
       />
-      {events.map((e) =>
-        onSelectEvent ? (
-          // A quick-glance flyer panel replaces the popup's role here — one
-          // click straight to the flyer, docked beside the map.
-          <Marker
-            key={e.event_id}
-            position={[e.latitude, e.longitude]}
-            eventHandlers={{ click: () => onSelectEvent(e.event_id) }}
-          />
-        ) : (
-          <Marker key={e.event_id} position={[e.latitude, e.longitude]}>
+      {events.map((e) => (
+        <Marker
+          key={e.event_id}
+          position={[e.latitude, e.longitude]}
+          eventHandlers={onMarkerClick ? { click: () => onMarkerClick(e) } : undefined}
+        >
+          {showPopup && (
             <Popup>
-              <strong>{e.title}</strong>
-              <br />
-              {formatEventDateTime(e.event_date)}
-              <br />
-              <Link to={`/events/${e.event_id}`}>Details &amp; RSVP</Link>
+              {renderPopup ? (
+                renderPopup(e)
+              ) : (
+                <>
+                  <strong>{e.title}</strong>
+                  <br />
+                  {formatEventDateTime(e.event_date)}
+                  <br />
+                  {onSelectEvent ? (
+                    <button type="button" className="popup-link" onClick={() => onSelectEvent(e.event_id)}>
+                      Details &amp; RSVP
+                    </button>
+                  ) : (
+                    <Link to={`/events/${e.event_id}`}>Details &amp; RSVP</Link>
+                  )}
+                </>
+              )}
             </Popup>
-          </Marker>
-        )
-      )}
+          )}
+        </Marker>
+      ))}
     </MapContainer>
   );
 }

@@ -2,41 +2,71 @@
 // Hosted events and RSVPs live only on the dedicated /events and /rsvps
 // pages (reached via the map's nav overlay) — not duplicated here.
 import { useCallback, useEffect, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
-import { api, apiUrl, currentUser } from "../api/client.js";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
+import { api, apiUrl, getNeighborhoodForZip } from "../api/client.js";
+import { useAuth } from "../context/AuthContext.jsx";
 import AvatarInput from "../components/AvatarInput.jsx";
-import LeaderBadge from "../components/LeaderBadge.jsx";
 
 const DEFAULT_AVATAR = "/images/default_avatar.svg";
 
 export default function Profile() {
   const { userId } = useParams();
   const navigate = useNavigate();
-  const me = currentUser();
+  const me = useAuth();
   const isOwn = me && me.user_id === Number(userId);
 
   const [profile, setProfile] = useState(null);
-  const [standings, setStandings] = useState([]);
+  const [neighborhoodName, setNeighborhoodName] = useState(null);
   const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({ display_name: "", bio: "", home_zip_code: "" });
+  const [form, setForm] = useState({ display_name: "", bio: "", home_zip_code: "", intent: "" });
   const [pictureFile, setPictureFile] = useState(null);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [deleteChecked, setDeleteChecked] = useState(false);
   const [error, setError] = useState(null);
+  const [noProfile, setNoProfile] = useState(false);
 
   const load = useCallback(() => {
     api
       .getProfile(userId)
       .then((p) => {
         setProfile(p);
-        setForm({ display_name: p.display_name, bio: p.bio, home_zip_code: p.home_zip_code });
+        setForm({
+          display_name: p.display_name,
+          bio: p.bio,
+          home_zip_code: p.home_zip_code,
+          intent: p.intent ?? "",
+        });
       })
-      .catch((err) => setError(err.message));
-    api.getUserStandings(userId).then(setStandings).catch(() => setStandings([]));
+      .catch((err) => {
+        // Reachable if onboarding was abandoned right after account creation
+        // (before the profile step) and the account is later visited directly
+        // instead of through SignIn's own has_profile redirect.
+        if (err.status === 404) setNoProfile(true);
+        else setError(err.message);
+      });
   }, [userId]);
 
   useEffect(load, [load]);
 
+  // Resolves in the background; the raw ZIP still renders below until this
+  // lands, and stays put if the lookup comes up empty (no geocode match, or
+  // the point falls outside every neighborhood boundary we have).
+  useEffect(() => {
+    if (!profile) return;
+    let cancelled = false;
+    setNeighborhoodName(null);
+    getNeighborhoodForZip(profile.home_zip_code)
+      .then((name) => {
+        if (!cancelled) setNeighborhoodName(name);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [profile?.home_zip_code]);
+
+  if (noProfile && isOwn) return <Navigate to="/signup?step=profile" replace />;
+  if (noProfile) return <main><h1>Profile</h1><p>This user hasn't finished setting up their profile yet.</p></main>;
   if (error) return <main><h1>Profile</h1><p role="alert">{error}</p></main>;
   if (!profile) return <main><p>Loading…</p></main>;
 
@@ -85,9 +115,7 @@ export default function Profile() {
 
   return (
     <main>
-      <h1>
-        {profile.display_name} <LeaderBadge userId={Number(userId)} />
-      </h1>
+      <h1>{profile.display_name}</h1>
       {!editing && (
         <img
           className="avatar"
@@ -111,7 +139,7 @@ export default function Profile() {
             </button>
           )}
           <label>
-            Display name
+            Display Name
             <input value={form.display_name} onChange={set("display_name")} required />
           </label>
           <label>
@@ -121,6 +149,15 @@ export default function Profile() {
           <label>
             Home ZIP
             <input value={form.home_zip_code} onChange={set("home_zip_code")} pattern="\d{5}" required />
+          </label>
+          <label>
+            What do you want to do more of, offline?
+            <textarea
+              value={form.intent}
+              onChange={set("intent")}
+              placeholder="e.g. meet people who like hiking, find a weekly study group, just get out of the house more"
+            />
+            <small>The matchmaker uses this to find events you'll actually show up to.</small>
           </label>
           <button type="submit">Save</button>{" "}
           <button
@@ -136,16 +173,34 @@ export default function Profile() {
       ) : (
         <>
           <p>{profile.bio}</p>
-          <p>Home ZIP: {profile.home_zip_code}</p>
-          {isOwn && <button onClick={() => setEditing(true)}>Edit profile</button>}
+          <p>
+            {neighborhoodName
+              ? `Neighborhood: ${neighborhoodName}`
+              : `Home ZIP: ${profile.home_zip_code}`}
+          </p>
+          {profile.intent && (
+            <p>
+              <strong>Looking for:</strong> {profile.intent}
+            </p>
+          )}
+          {isOwn && (
+            <>
+              <button onClick={() => setEditing(true)}>Edit profile</button>{" "}
+              <button onClick={() => navigate("/signup?step=tutorial")}>
+                Replay tutorial
+              </button>
+            </>
+          )}
         </>
       )}
 
       <h2>Interests</h2>
       {profile.interests.length ? (
-        <ul>
+        <ul className="chip-list">
           {profile.interests.map((tag) => (
-            <li key={tag.tag_id}>{tag.name}</li>
+            <li key={tag.tag_id} className="chip">
+              {tag.name}
+            </li>
           ))}
         </ul>
       ) : (
@@ -153,19 +208,9 @@ export default function Profile() {
       )}
 
       <h2>Community standing</h2>
-      {standings.length ? (
-        <ul>
-          {standings.map((s) => (
-            <li key={s.standing_id}>
-              {s.neighborhood_name} ({s.city}): hosted {s.events_hosted}, attended{" "}
-              {s.events_attended}
-              {s.is_leader && " · 🌿 leader"}
-            </li>
-          ))}
-        </ul>
-      ) : (
-        <p>No community activity yet.</p>
-      )}
+      <p>
+        <Link to={`/profile/${userId}/standing`}>View Community Standing →</Link>
+      </p>
 
       {isOwn && (
         <p>

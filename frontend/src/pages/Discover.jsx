@@ -1,16 +1,17 @@
 // Main page: full-page interactive event map. Search happens right on the
 // map (zip/location overlay, top-left) — no separate event list here
 // anymore; see Events.jsx/RSVPs.jsx for those dedicated pages.
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import EventMap from "../components/EventMap.jsx";
 import EventCard from "../components/EventCard.jsx";
 import EventDetailModal from "../components/EventDetailModal.jsx";
 import EventFlyerPanel from "../components/EventFlyerPanel.jsx";
-import { api, currentUser } from "../api/client.js";
+import { api } from "../api/client.js";
+import { useAuth } from "../context/AuthContext.jsx";
 
 export default function Discover() {
-  const me = currentUser();
+  const me = useAuth();
   const [events, setEvents] = useState([]);
   const [recs, setRecs] = useState([]);
   const [refreshing, setRefreshing] = useState(false);
@@ -22,10 +23,32 @@ export default function Discover() {
   const [recsOpen, setRecsOpen] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState(null);
   const [detailEventId, setDetailEventId] = useState(null);
+  const [isAdmin, setIsAdmin] = useState(false);
   // Mobile-only dropdown state — on wide screens the nav/search bars ignore
   // these and stay always-visible (see the max-width:900px CSS).
   const [navOpen, setNavOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const navRef = useRef(null);
+
+  // Guessed rem offsets for the AI rail's top position kept coming up short
+  // (the nav pill's real height varies with font/zoom/content) and left it
+  // reading as overlapping the nav row above. Publish the nav's actual
+  // measured height instead, same pattern as Header.jsx's --header-h.
+  useEffect(() => {
+    const el = navRef.current;
+    if (!el) return;
+    const setVar = () => document.documentElement.style.setProperty("--nav-overlay-h", `${el.offsetHeight}px`);
+    setVar();
+    const observer = new ResizeObserver(setVar);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Show the Review link only to moderators (server also gates the endpoint).
+  useEffect(() => {
+    if (!me) return setIsAdmin(false);
+    api.getIsAdmin().then((r) => setIsAdmin(Boolean(r?.is_admin))).catch(() => setIsAdmin(false));
+  }, [me]);
 
   useEffect(() => {
     api.listEvents({ status: "open" }).then(setEvents).catch(() => setEvents([]));
@@ -128,7 +151,7 @@ export default function Discover() {
             </button>
           </div>
 
-          <nav className={`map-nav-overlay${navOpen ? " is-open" : ""}`}>
+          <nav ref={navRef} className={`map-nav-overlay${navOpen ? " is-open" : ""}`}>
             {me && (
               <Link to="/events/new" className="btn btn-primary">
                 + Create Event
@@ -136,7 +159,10 @@ export default function Discover() {
             )}
             {me && <Link to="/events">My Events</Link>}
             {me && <Link to="/rsvps">My RSVPs</Link>}
+            {me && <Link to="/prompts">Prompts</Link>}
             {me && <Link to={`/profile/${me.user_id}`}>Profile</Link>}
+            {isAdmin && <Link to="/review">Review</Link>}
+            {isAdmin && <Link to="/metrics">Metrics</Link>}
           </nav>
 
           <div className={`map-search-overlay${searchOpen ? " is-open" : ""}`}>
@@ -210,8 +236,9 @@ export default function Discover() {
           {...(center ? { center } : {})}
           zoom={zoom}
           height="100%"
-          onSelectEvent={(eventId) => {
-            setSelectedEventId(eventId);
+          showPopup={false}
+          onMarkerClick={(e) => {
+            setSelectedEventId(e.event_id);
             setRecsOpen(false); // the recs rail and flyer rail share the same dock
           }}
         />

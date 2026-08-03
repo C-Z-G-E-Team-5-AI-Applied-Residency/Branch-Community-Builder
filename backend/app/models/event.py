@@ -42,3 +42,11 @@ class Event(Base):
     flyer_background_id: Mapped[str | None] = mapped_column(String, nullable=True)
     flyer_text_color: Mapped[str | None] = mapped_column(String, nullable=True)
     flyer_font_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    # host's stated purpose ("the why"); fed to the AI matchmaker and the mission guardrail
+    why: Mapped[str | None] = mapped_column(String, nullable=True)
+    # mission guardrail outcome: 'approved' | 'pending' | 'rejected'
+    review_status: Mapped[str] = mapped_column(String, nullable=False, default="approved")
+    # AI one-line summary shown on the review card
+    review_summary: Mapped[str | None] = mapped_column(String, nullable=True)
+    # AI "why it was flagged" note (+ any human note)
+    review_reason: Mapped[str | None] = mapped_column(String, nullable=True)
