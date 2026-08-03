@@ -464,6 +464,102 @@ textarea { min-height: 90px; resize: vertical; }
 }
 .announcement-list em { color: var(--ink-soft); font-size: 0.85rem; white-space: nowrap; }
 
+/* ---------- weekly prompt ---------- */
+/* Narrower than the default main (1100px): a wide near-empty card read as
+   dead whitespace with just a question + textarea in it, so this page gets
+   its own tighter column instead. */
+.prompt-page { max-width: 640px; }
+.prompt-tabs { display: flex; gap: 0.4rem; margin-bottom: 1.25rem; }
+.prompt-tabs button {
+  border-radius: 999px;
+  padding: 0.4rem 1.1rem;
+}
+/* Current vs. Past: the active tab gets the same accent as primary buttons,
+   so "this week's" reads as distinct from the archive at a glance. */
+.prompt-tabs button.is-active {
+  background: var(--green);
+  border-color: var(--green-dark);
+  color: #fff;
+  font-weight: 600;
+}
+.prompt-card { padding: 1.5rem 1.75rem; }
+.prompt-card h2 { margin: 0.2rem 0 1.1rem; line-height: 1.35; }
+.prompt-card h3 { margin: 1.75rem 0 0.75rem; font-size: 1rem; }
+.prompt-week { color: var(--ink-soft); font-size: 0.8rem; letter-spacing: 0.02em; text-transform: uppercase; margin: 0; }
+.prompt-form textarea { margin: 0 0 0.35rem; }
+.prompt-char-count { margin: 0 0 0.75rem; color: var(--ink-soft); font-size: 0.8rem; text-align: right; }
+.prompt-form-actions { display: flex; gap: 0.5rem; }
+.prompt-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  color: var(--ink-soft);
+  font-size: 0.9rem;
+  background: var(--green-soft);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+  margin: 0;
+}
+.prompt-responses { border-top: 1.5px solid var(--line); }
+/* Each answer as its own tile rather than a hairline-divided row — a long
+   list of bare text lines was reading as one undifferentiated block. Not
+   using the shared `.plain` reset here: it beats this rule's specificity
+   (two classes vs one) and was silently zeroing out its left/right padding. */
+.prompt-response-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+.prompt-response-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  background: var(--panel-2);
+  border: 1.5px solid var(--line);
+  border-radius: 8px;
+  padding: 0.6rem 0.9rem;
+}
+.response-avatar {
+  flex: none;
+  width: 2.1rem;
+  height: 2.1rem;
+  border-radius: 50%;
+  background: var(--green);
+  color: #fff;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.response-body { flex: 1; min-width: 0; }
+/* flex-wrap so a long "Mon DD, H:MM PM" timestamp drops to its own line as a
+   whole unit on narrow screens, instead of the no-wrap default splitting it
+   mid-phrase (e.g. "9:40" stranded from "PM"). */
+.response-meta { display: flex; align-items: baseline; gap: 0.5rem; flex-wrap: wrap; }
+.response-username { font-weight: 600; color: var(--ink); overflow-wrap: break-word; }
+.response-time { font-size: 0.75rem; color: var(--ink-soft); white-space: nowrap; }
+.response-text { margin: 0.2rem 0 0; color: var(--ink); overflow-wrap: break-word; }
+
+.prompt-back { margin-bottom: 1rem; }
+
+.prompt-list { list-style: none; padding-left: 0; margin: 0; }
+.prompt-list-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.25rem;
+  width: 100%;
+  text-align: left;
+  background: var(--panel-2);
+  padding: 0.75rem 0.9rem;
+  margin-bottom: 0.5rem;
+}
+.prompt-list-item:hover { background: var(--green-soft); }
+
 .chip {
   display: inline-block;
   background: var(--green-soft);

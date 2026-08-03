@@ -157,6 +157,7 @@ export default function Discover() {
             )}
             {me && <Link to="/events">My Events</Link>}
             {me && <Link to="/rsvps">My RSVPs</Link>}
+            {me && <Link to="/prompts">Prompts</Link>}
             {me && <Link to={`/profile/${me.user_id}`}>Profile</Link>}
             {isAdmin && <Link to="/review">Review</Link>}
             {isAdmin && <Link to="/metrics">Metrics</Link>}

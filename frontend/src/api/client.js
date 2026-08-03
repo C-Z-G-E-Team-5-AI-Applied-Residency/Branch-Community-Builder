@@ -153,6 +153,15 @@ export const api = {
     request(`/api/events/${eventId}/review`, { method: "PATCH", body: { decision, note } }),
   // metrics (admin only)
   getRecommendationConversion: () => request("/api/metrics/recommendation-conversion"),
+  // weekly prompts
+  getCurrentPrompt: () => request("/api/prompts/current"),
+  listPastPrompts: () => request("/api/prompts"),
+  getPrompt: (promptId) => request(`/api/prompts/${promptId}`),
+  submitPromptResponse: (responseText) =>
+    request("/api/prompts/current/responses", { method: "POST", body: { response_text: responseText } }),
+  editPromptResponse: (responseId, responseText) =>
+    request(`/api/prompt-responses/${responseId}`, { method: "PATCH", body: { response_text: responseText } }),
+  getPromptResponses: (promptId) => request(`/api/prompts/${promptId}/responses`),
 };
 
 // Same Nominatim service CreateEvent.jsx geocodes addresses through. Resolves

@@ -14,6 +14,7 @@ import CommunityStanding from "./pages/CommunityStanding.jsx";
 import HostCheckIn from "./pages/HostCheckIn.jsx";
 import Review from "./pages/Review.jsx";
 import Metrics from "./pages/Metrics.jsx";
+import Prompts from "./pages/Prompts.jsx";
 import About from "./pages/About.jsx";
 import Contact from "./pages/Contact.jsx";
 
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/discover" element={<RequireAuth><Discover /></RequireAuth>} />
         <Route path="/events" element={<RequireAuth><Events /></RequireAuth>} />
         <Route path="/rsvps" element={<RequireAuth><RSVPs /></RequireAuth>} />
+        <Route path="/prompts" element={<RequireAuth><Prompts /></RequireAuth>} />
         <Route path="/events/new" element={<RequireAuth><CreateEvent /></RequireAuth>} />
         <Route path="/events/:eventId" element={<RequireAuth><EventDetail /></RequireAuth>} />
         <Route path="/events/:eventId/host" element={<RequireAuth><HostCheckIn /></RequireAuth>} />
