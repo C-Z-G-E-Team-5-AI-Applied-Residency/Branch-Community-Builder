@@ -1,10 +1,13 @@
 // Single event: description, tags, RSVP button, attendee count, QR check-in.
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { api, apiUrl, currentUser } from "../api/client.js";
+import { api, currentUser } from "../api/client.js";
+import FlyerDisplay from "../components/FlyerDisplay.jsx";
+import FlyerEditor from "../components/FlyerEditor.jsx";
 import FlyerModal from "../components/FlyerModal.jsx";
 import QRScanner from "../components/QRScanner.jsx";
-import { FLYER_TEMPLATES } from "../flyerTemplates.js";
+import { resolveFlyer } from "../flyerTemplates.js";
+import { formatEventDateTime } from "../formatDate.js";
 
 function ordinal(day) {
   if (day >= 11 && day <= 13) return `${day}th`;
@@ -122,16 +125,6 @@ export default function EventDetail() {
     }
   }
 
-  async function onSelectFlyerTemplate(templateId) {
-    setFlyerNotice(null);
-    try {
-      await api.selectFlyerTemplate(event.event_id, templateId);
-      load();
-    } catch (err) {
-      setFlyerNotice(err.message);
-    }
-  }
-
   async function onRemoveFlyer() {
     setFlyerNotice(null);
     try {
@@ -142,19 +135,13 @@ export default function EventDetail() {
     }
   }
 
-  // uploaded flyers are served by the API; template picks are static asset paths
-  const hasUploadedFlyer = event.flyer_url?.startsWith("/api/");
-  const flyerSrc = event.flyer_url
-    ? hasUploadedFlyer
-      ? apiUrl(event.flyer_url)
-      : event.flyer_url
-    : null;
+  const hasFlyer = resolveFlyer(event).kind !== "none";
 
   return (
     <main>
       <h1>{event.title}</h1>
       <p>
-        {new Date(event.event_date).toLocaleString()} · {event.location} ·{" "}
+        {formatEventDateTime(event.event_date)} · {event.location} ·{" "}
         {event.event_zip_code}
       </p>
       <p>{event.event_description}</p>
@@ -165,10 +152,10 @@ export default function EventDetail() {
         Hosted by <Link to={`/profile/${event.host_id}`}>user #{event.host_id}</Link>
       </p>
 
-      {flyerSrc && (
+      {hasFlyer && (
         <p>
           <button type="button" className="flyer-view-trigger" onClick={() => setShowFlyerModal(true)}>
-            <img src={flyerSrc} alt="" width={60} />
+            <FlyerDisplay event={event} className="flyer-view-trigger-thumb" />
             View Flyer
           </button>
         </p>
@@ -226,7 +213,7 @@ export default function EventDetail() {
       {isHost && (
         <section>
           <h2>Event flyer</h2>
-          {flyerSrc && <img src={flyerSrc} alt="" width={200} />}
+          {hasFlyer && <FlyerDisplay event={event} className="flyer-host-preview" />}
 
           <form onSubmit={onUploadFlyer}>
             <label>
@@ -242,23 +229,10 @@ export default function EventDetail() {
             </button>
           </form>
 
-          <p>Or pick a template:</p>
-          <ul style={{ display: "flex", gap: "0.75rem", listStyle: "none", padding: 0 }}>
-            {FLYER_TEMPLATES.map((t) => (
-              <li key={t.id}>
-                <button
-                  type="button"
-                  onClick={() => onSelectFlyerTemplate(t.id)}
-                  style={{ display: "block", padding: 0, border: "none", background: "none" }}
-                >
-                  <img src={t.src} alt={t.label} width={80} />
-                  <div>{t.label}</div>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <p>Or design a flyer from a template:</p>
+          <FlyerEditor event={event} onSaved={load} />
 
-          {event.flyer_url && (
+          {hasFlyer && (
             <button type="button" onClick={onRemoveFlyer}>
               Remove flyer
             </button>
@@ -267,8 +241,8 @@ export default function EventDetail() {
         </section>
       )}
 
-      {showFlyerModal && flyerSrc && (
-        <FlyerModal event={event} src={flyerSrc} onClose={() => setShowFlyerModal(false)} />
+      {showFlyerModal && hasFlyer && (
+        <FlyerModal event={event} onClose={() => setShowFlyerModal(false)} />
       )}
     </main>
   );

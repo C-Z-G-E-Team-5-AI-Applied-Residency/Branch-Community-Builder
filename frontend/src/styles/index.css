@@ -427,6 +427,36 @@ textarea { min-height: 90px; resize: vertical; }
 }
 .ai-rail-toggle:hover { background: var(--green-soft); }
 
+.flyer-rail {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.9rem;
+  bottom: 0.9rem;
+  width: 330px;
+  z-index: 1000; /* above leaflet panes */
+  background: var(--panel);
+  border: 1.5px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.9rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+.flyer-rail-image { width: 100%; display: block; border-radius: var(--radius); }
+.flyer-rail-caption strong { display: block; }
+.flyer-rail-close {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.6rem;
+  border: none;
+  background: transparent;
+  font-size: 1.2rem;
+  line-height: 1;
+  padding: 0.2rem 0.5rem;
+}
+.flyer-rail-close:hover { background: var(--green-soft); }
+
 .chip {
   display: inline-block;
   background: var(--green-soft);
@@ -496,7 +526,36 @@ ul.plain li { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
   cursor: pointer;
   color: var(--green-dark);
 }
-.flyer-view-trigger img { border-radius: var(--radius); border: 1.5px solid var(--line); }
+.flyer-view-trigger-thumb { width: 60px; border-radius: var(--radius); border: 1.5px solid var(--line); }
+
+.flyer-host-preview { width: 200px; display: block; border-radius: var(--radius); border: 1.5px solid var(--line); }
+
+/* ---------- flyer editor (template + background/text/font picker) ---------- */
+.flyer-editor-templates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  list-style: none;
+  padding: 0;
+}
+.flyer-editor-template-btn {
+  display: block;
+  padding: 0.25rem;
+  border: 2px solid transparent;
+  border-radius: 4px;
+  background: none;
+  cursor: pointer;
+}
+.flyer-editor-template-btn.is-selected { border-color: var(--green); }
+.flyer-editor-thumb { width: 80px; display: block; }
+.flyer-editor-style-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+  margin: 0.75rem 0;
+}
+.flyer-editor-preview { width: 200px; display: block; border-radius: var(--radius); border: 1.5px solid var(--line); }
 
 .flyer-modal-backdrop {
   position: fixed;
@@ -545,6 +604,8 @@ ul.plain li { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
   }
   .flyer-modal { box-shadow: none !important; max-width: 100% !important; max-height: none !important; }
   .flyer-modal-no-print { display: none !important; }
+}
+
 /* Below this width the nav pill (4 items), search bar, and AI bubble can no
    longer all float independently without colliding. Turn .map-toolbar into
    a plain stacked column instead — its children go from individually
@@ -563,7 +624,8 @@ ul.plain li { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
   }
   .map-nav-overlay,
   .map-search-overlay,
-  .ai-rail {
+  .ai-rail,
+  .flyer-rail {
     position: static;
     width: 100%;
     max-width: none;
@@ -573,7 +635,7 @@ ul.plain li { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
   .map-search-overlay form { flex-direction: column; align-items: stretch; }
   .map-search-overlay input { width: 100%; }
   .ai-rail-toggle { position: static; align-self: flex-end; }
-  .ai-rail { max-height: 60vh; }
+  .ai-rail, .flyer-rail { max-height: 60vh; }
 
   /* Collapse the nav pill and search bar behind their own dropdown toggles
      to save vertical space — the AI bubble/rail is unaffected and keeps

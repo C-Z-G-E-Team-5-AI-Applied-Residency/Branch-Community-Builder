@@ -32,8 +32,13 @@ class Event(Base):
         nullable=True,
     )
     check_in_code: Mapped[str | None] = mapped_column(String, nullable=True)
-    # URL/path shown in <img>; points at a prebuilt template asset or the
-    # flyer endpoint once bytes are uploaded
+    # URL/path shown in <img>; only meaningful for uploaded flyers or legacy
+    # (pre-customization) template picks. New template picks leave this null
+    # and are rendered live from the four columns below instead.
     flyer_url: Mapped[str | None] = mapped_column(String, nullable=True)
     flyer_data: Mapped[bytes | None] = mapped_column(LargeBinary)
     flyer_mime: Mapped[str | None] = mapped_column(String)
+    flyer_template_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    flyer_background_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    flyer_text_color: Mapped[str | None] = mapped_column(String, nullable=True)
+    flyer_font_id: Mapped[str | None] = mapped_column(String, nullable=True)

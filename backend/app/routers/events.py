@@ -1,4 +1,5 @@
 import hashlib
+import re
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -23,15 +24,33 @@ from app.services import standings
 
 router = APIRouter(prefix="/api/events", tags=["events"])
 
-# Prebuilt flyer designs a host can pick instead of uploading their own.
-# TODO: these paths don't correspond to real assets yet — add the actual
-# template images under frontend/public/images/flyer-templates/ before
-# wiring this up to a UI.
-FLYER_TEMPLATES = {
-    "classic": "/images/flyer-templates/classic.svg",
-    "bold": "/images/flyer-templates/bold.svg",
-    "minimal": "/images/flyer-templates/minimal.svg",
+# Events that picked one of the 3 original templates before flyer
+# customization existed keep flyer_url pointing at the static SVGs under
+# frontend/public/images/flyer-templates/ — the frontend renders those
+# byte-for-byte as before. New picks go through flyer_template_id instead
+# and are rendered live by the frontend.
+#
+# Keep these three sets in sync with FLYER_TEMPLATES/FLYER_BACKGROUNDS/FLYER_FONTS
+# in frontend/src/flyerTemplates.js.
+FLYER_TEMPLATE_IDS = {"classic", "bold", "minimal", "community1", "community2", "nature1", "nature2"}
+FLYER_BACKGROUND_IDS = {
+    "solid-cream", "solid-sage", "solid-charcoal", "solid-white",
+    "gradient-sunset", "gradient-meadow", "gradient-dusk",
+    "pattern-leaves", "pattern-dots", "pattern-stripes",
 }
+FLYER_FONT_IDS = {"serif-classic", "sans-bold", "sans-minimal", "mono-modern"}
+# Used to fill in any of background_id/text_color/font_id the host didn't specify.
+FLYER_TEMPLATE_DEFAULTS = {
+    "classic": {"background_id": "solid-cream", "text_color": "#3f4a3a", "font_id": "serif-classic"},
+    "bold": {"background_id": "solid-charcoal", "text_color": "#dbe7d3", "font_id": "sans-bold"},
+    "minimal": {"background_id": "solid-white", "text_color": "#3f4a3a", "font_id": "sans-minimal"},
+    "community1": {"background_id": "gradient-meadow", "text_color": "#3f4a3a", "font_id": "sans-minimal"},
+    "community2": {"background_id": "solid-cream", "text_color": "#3f4a3a", "font_id": "sans-bold"},
+    "nature1": {"background_id": "pattern-leaves", "text_color": "#3f4a3a", "font_id": "serif-classic"},
+    "nature2": {"background_id": "gradient-sunset", "text_color": "#ffffff", "font_id": "sans-bold"},
+}
+HEX_COLOR_RE = re.compile(r"^#[0-9a-fA-F]{6}$")
+
 # Check-in opens this many hours before the event start (BR-37).
 CHECK_IN_OPENS_BEFORE_HOURS = 1
 
@@ -65,6 +84,10 @@ def _serialize_event(event: Event, tags: list[dict], *, include_check_in_code: b
         "host_id": event.host_id,
         "event_image_url": event.event_image_url,
         "flyer_url": event.flyer_url,
+        "flyer_template_id": event.flyer_template_id,
+        "flyer_background_id": event.flyer_background_id,
+        "flyer_text_color": event.flyer_text_color,
+        "flyer_font_id": event.flyer_font_id,
         "latitude": event.latitude,
         "longitude": event.longitude,
         "tags": tags,
@@ -210,6 +233,11 @@ async def upload_event_flyer(event_id: int, file: UploadFile, request: Request, 
     # content-hash version so browsers can cache the URL forever
     version = hashlib.sha1(data).hexdigest()[:8]
     event.flyer_url = f"/api/events/{event_id}/flyer?v={version}"
+    # an uploaded image and a structured template pick are mutually exclusive
+    event.flyer_template_id = None
+    event.flyer_background_id = None
+    event.flyer_text_color = None
+    event.flyer_font_id = None
     db.commit()
     db.refresh(event)
 
@@ -237,7 +265,8 @@ def get_event_flyer(event_id: int, db: Session = Depends(get_db)):
 def select_event_flyer_template(
     event_id: int, body: FlyerTemplateSelect, request: Request, db: Session = Depends(get_db)
 ):
-    """Pick a prebuilt flyer template instead of uploading, host only. 200 / 401 / 403 / 404."""
+    """Pick a prebuilt flyer template (with optional background/text/font style)
+    instead of uploading, host only. 200 / 400 / 401 / 403 / 404."""
     user_id = require_user(request)
     event = db.get(Event, event_id)
     if event is None:
@@ -245,13 +274,30 @@ def select_event_flyer_template(
     if event.host_id != user_id:
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Not the host of this event")
 
-    template_path = FLYER_TEMPLATES.get(body.template_id)
-    if template_path is None:
+    if body.template_id not in FLYER_TEMPLATE_IDS:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Unknown flyer template")
 
+    defaults = FLYER_TEMPLATE_DEFAULTS[body.template_id]
+    background_id = body.background_id or defaults["background_id"]
+    text_color = body.text_color or defaults["text_color"]
+    font_id = body.font_id or defaults["font_id"]
+
+    if background_id not in FLYER_BACKGROUND_IDS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown flyer background")
+    if font_id not in FLYER_FONT_IDS:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Unknown flyer font")
+    if not HEX_COLOR_RE.match(text_color):
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "text_color must be a #rrggbb hex value")
+
+    # structured template picks are rendered live by the frontend, not served
+    # as a static asset or an uploaded image — clear both other flyer modes
     event.flyer_data = None
     event.flyer_mime = None
-    event.flyer_url = template_path
+    event.flyer_url = None
+    event.flyer_template_id = body.template_id
+    event.flyer_background_id = background_id
+    event.flyer_text_color = text_color
+    event.flyer_font_id = font_id
     db.commit()
     db.refresh(event)
 
@@ -272,6 +318,10 @@ def delete_event_flyer(event_id: int, request: Request, db: Session = Depends(ge
     event.flyer_data = None
     event.flyer_mime = None
     event.flyer_url = event.event_image_url
+    event.flyer_template_id = None
+    event.flyer_background_id = None
+    event.flyer_text_color = None
+    event.flyer_font_id = None
     db.commit()
 
 

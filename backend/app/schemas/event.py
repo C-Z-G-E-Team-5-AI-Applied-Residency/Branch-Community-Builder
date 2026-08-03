@@ -20,6 +20,9 @@ class EventCreate(BaseModel):
 
 class FlyerTemplateSelect(BaseModel):
     template_id: str
+    background_id: str | None = None
+    text_color: str | None = None
+    font_id: str | None = None
 
 
 class EventUpdate(BaseModel):

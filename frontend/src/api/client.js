@@ -81,10 +81,15 @@ export const api = {
     formData.append("file", file);
     return request(`/api/events/${eventId}/flyer`, { method: "PUT", formData });
   },
-  selectFlyerTemplate: (eventId, templateId) =>
+  selectFlyerTemplate: (eventId, templateId, style = {}) =>
     request(`/api/events/${eventId}/flyer/template`, {
       method: "PUT",
-      body: { template_id: templateId },
+      body: {
+        template_id: templateId,
+        background_id: style.backgroundId,
+        text_color: style.textColor,
+        font_id: style.fontId,
+      },
     }),
   removeEventFlyer: (eventId) => request(`/api/events/${eventId}/flyer`, { method: "DELETE" }),
   // rsvps

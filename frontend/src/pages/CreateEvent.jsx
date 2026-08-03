@@ -2,7 +2,8 @@
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api, currentUser } from "../api/client.js";
-import { FLYER_TEMPLATES } from "../flyerTemplates.js";
+import FlyerPreview from "../components/FlyerPreview.jsx";
+import { FLYER_TEMPLATES, FLYER_TEMPLATE_DEFAULTS } from "../flyerTemplates.js";
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 
@@ -202,7 +203,13 @@ export default function CreateEvent() {
                   borderRadius: "4px",
                 }}
               >
-                <img src={t.src} alt={t.label} width={80} />
+                <FlyerPreview
+                  templateId={t.id}
+                  backgroundId={FLYER_TEMPLATE_DEFAULTS[t.id].backgroundId}
+                  textColor={FLYER_TEMPLATE_DEFAULTS[t.id].textColor}
+                  fontId={FLYER_TEMPLATE_DEFAULTS[t.id].fontId}
+                  className="flyer-editor-thumb"
+                />
                 <div>{t.label}</div>
               </button>
             ))}

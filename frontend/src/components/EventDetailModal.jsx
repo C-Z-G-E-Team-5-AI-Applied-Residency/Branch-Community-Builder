@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, currentUser } from "../api/client.js";
+import { formatEventDateTime } from "../formatDate.js";
 import QRScanner from "./QRScanner.jsx";
 
 function ordinal(day) {
@@ -63,7 +64,12 @@ export default function EventDetailModal({ eventId, onClose }) {
     ]);
   }, [eventId]);
 
-  useEffect(load, [load]);
+  // load() returns a promise (so onRsvp/onCancel/onScan can await a refresh)
+  // — don't hand that promise to useEffect directly, or React will try to
+  // call it as a cleanup function on unmount.
+  useEffect(() => {
+    load();
+  }, [load]);
 
   useEffect(() => {
     function onKeyDown(e) {
@@ -135,7 +141,7 @@ export default function EventDetailModal({ eventId, onClose }) {
           <>
             <h1>{event.title}</h1>
             <p>
-              {new Date(event.event_date).toLocaleString()} · {event.location} ·{" "}
+              {formatEventDateTime(event.event_date)} · {event.location} ·{" "}
               {event.event_zip_code}
             </p>
             <p>{event.event_description}</p>

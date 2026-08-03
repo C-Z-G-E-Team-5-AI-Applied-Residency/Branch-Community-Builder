@@ -6,6 +6,7 @@ import { Link } from "react-router-dom";
 import EventMap from "../components/EventMap.jsx";
 import EventCard from "../components/EventCard.jsx";
 import EventDetailModal from "../components/EventDetailModal.jsx";
+import EventFlyerPanel from "../components/EventFlyerPanel.jsx";
 import { api, currentUser } from "../api/client.js";
 
 export default function Discover() {
@@ -20,6 +21,7 @@ export default function Discover() {
   const [searchNote, setSearchNote] = useState(null);
   const [recsOpen, setRecsOpen] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState(null);
+  const [detailEventId, setDetailEventId] = useState(null);
   // Mobile-only dropdown state — on wide screens the nav/search bars ignore
   // these and stay always-visible (see the max-width:900px CSS).
   const [navOpen, setNavOpen] = useState(false);
@@ -162,7 +164,10 @@ export default function Discover() {
             <button
               type="button"
               className="ai-rail-toggle"
-              onClick={() => setRecsOpen(true)}
+              onClick={() => {
+                setRecsOpen(true);
+                setSelectedEventId(null); // the recs rail and flyer rail share the same dock
+              }}
               aria-label="Recommended for you"
             >
               ✨
@@ -205,11 +210,22 @@ export default function Discover() {
           {...(center ? { center } : {})}
           zoom={zoom}
           height="100%"
-          onSelectEvent={setSelectedEventId}
+          onSelectEvent={(eventId) => {
+            setSelectedEventId(eventId);
+            setRecsOpen(false); // the recs rail and flyer rail share the same dock
+          }}
         />
 
         {selectedEventId && (
-          <EventDetailModal eventId={selectedEventId} onClose={() => setSelectedEventId(null)} />
+          <EventFlyerPanel
+            event={events.find((e) => e.event_id === selectedEventId)}
+            onClose={() => setSelectedEventId(null)}
+            onOpenDetails={() => setDetailEventId(selectedEventId)}
+          />
+        )}
+
+        {detailEventId && (
+          <EventDetailModal eventId={detailEventId} onClose={() => setDetailEventId(null)} />
         )}
       </div>
     </main>
