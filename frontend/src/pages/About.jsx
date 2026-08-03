@@ -5,6 +5,7 @@
 // gives the reference site's "loads as you go" feel.
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext.jsx";
 
 const TEAM = [
   {
@@ -108,20 +109,22 @@ function Reveal({ as: Tag = "div", className = "", children }) {
 }
 
 export default function About() {
+  const me = useAuth();
+
   return (
     <main className="about-page">
       <section className="about-hero">
         <Link to="/discover" className="brand hero-logo">[ BRANCH… ]</Link>
-        <div className="hero-actions">
-          <Link to="/signin" className="btn">Sign In</Link>
-          <Link to="/signup" className="btn btn-primary">Register</Link>
-        </div>
+        {!me && (
+          <div className="hero-actions">
+            <Link to="/signin" className="btn">Sign In</Link>
+            <Link to="/signup" className="btn btn-primary">Register</Link>
+          </div>
+        )}
       </section>
 
       <h1>Who We Are</h1>
-      <div className="cover-placeholder" style={{ height: 260, marginBottom: "1.5rem" }}>
-        Video coming soon
-      </div>
+      <div className="cover-placeholder about-cover">Video coming soon</div>
 
       <Reveal as="section">
         <h2>The Team</h2>
@@ -165,7 +168,7 @@ export default function About() {
       <Reveal as="section">
         <h2>What Our Users Would Do</h2>
         {PERSONAS.map((p) => (
-          <div className="card" key={p.name} style={{ marginBottom: "1rem" }}>
+          <div className="card persona-card" key={p.name}>
             <h3>{p.name}</h3>
             <p>{p.blurb}</p>
             <p>{p.benefit}</p>

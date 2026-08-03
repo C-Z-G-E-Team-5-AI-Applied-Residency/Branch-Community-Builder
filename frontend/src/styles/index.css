@@ -607,6 +607,8 @@ ul.plain li { padding: 0.35rem 0; border-bottom: 1px solid var(--line); }
 .about-page, .contact-page { padding-left: 4rem; padding-right: 4rem; }
 .about-page section, .about-page > p { margin-bottom: 2.5rem; }
 .about-page h2 { margin-bottom: 1rem; }
+.about-cover { height: 260px; margin-bottom: 1.5rem; }
+.persona-card { margin-bottom: 1rem; }
 
 .about-hero {
   display: flex;
