@@ -5,7 +5,6 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import EventMap from "../components/EventMap.jsx";
 import EventCard from "../components/EventCard.jsx";
-import EventDetailModal from "../components/EventDetailModal.jsx";
 import EventFlyerPanel from "../components/EventFlyerPanel.jsx";
 import { api } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
@@ -22,7 +21,6 @@ export default function Discover() {
   const [searchNote, setSearchNote] = useState(null);
   const [recsOpen, setRecsOpen] = useState(false);
   const [selectedEventId, setSelectedEventId] = useState(null);
-  const [detailEventId, setDetailEventId] = useState(null);
   const [isAdmin, setIsAdmin] = useState(false);
   // Mobile-only dropdown state — on wide screens the nav/search bars ignore
   // these and stay always-visible (see the max-width:900px CSS).
@@ -247,12 +245,7 @@ export default function Discover() {
           <EventFlyerPanel
             event={events.find((e) => e.event_id === selectedEventId)}
             onClose={() => setSelectedEventId(null)}
-            onOpenDetails={() => setDetailEventId(selectedEventId)}
           />
-        )}
-
-        {detailEventId && (
-          <EventDetailModal eventId={detailEventId} onClose={() => setDetailEventId(null)} />
         )}
       </div>
     </main>

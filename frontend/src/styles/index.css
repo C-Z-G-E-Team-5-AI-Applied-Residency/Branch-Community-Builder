@@ -473,8 +473,6 @@ textarea { min-height: 90px; resize: vertical; }
   flex-direction: column;
   gap: 0.6rem;
 }
-.flyer-rail-image { width: 100%; display: block; border-radius: var(--radius); }
-.flyer-rail-caption strong { display: block; }
 .flyer-rail-close {
   position: absolute;
   top: 0.6rem;
@@ -486,6 +484,39 @@ textarea { min-height: 90px; resize: vertical; }
   padding: 0.2rem 0.5rem;
 }
 .flyer-rail-close:hover { background: var(--green-soft); }
+
+.flyer-rail-title {
+  margin: 0;
+  padding-right: 1.8rem; /* clears the close × */
+  font-size: 1.05rem;
+  line-height: 1.3;
+}
+.flyer-rail-image {
+  width: 100%;
+  display: block;
+  border-radius: var(--radius);
+  border: 1.5px solid var(--line);
+  box-shadow: 0 2px 8px rgba(74, 68, 51, 0.1);
+}
+.flyer-rail-meta { margin: 0; font-weight: 600; }
+.flyer-rail-going { margin: 0; color: var(--ink-soft); font-size: 0.85rem; }
+.flyer-rail-notice { margin: 0; color: var(--green-dark); font-weight: 600; }
+.flyer-rail-host-note { margin: 0; color: var(--ink-soft); font-style: italic; }
+
+.flyer-rail-rsvp { display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem; }
+.flyer-rail-rsvp .btn,
+.flyer-rail-rsvp button { width: 100%; text-align: center; }
+
+.flyer-rail-full-link {
+  margin-top: 0.2rem;
+  padding-top: 0.7rem;
+  border-top: 1.5px solid var(--line);
+  text-align: center;
+  font-size: 0.85rem;
+  text-decoration: none;
+  color: var(--green-dark);
+}
+.flyer-rail-full-link:hover { text-decoration: underline; }
 
 .announcement-form { display: flex; gap: 0.5rem; align-items: center; margin: 0.75rem 0 1rem; }
 .announcement-form input { margin-top: 0; flex: 1; }
