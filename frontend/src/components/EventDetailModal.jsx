@@ -79,6 +79,13 @@ export default function EventDetailModal({ eventId, onClose }) {
     return () => document.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
+  // Move focus into the dialog when it opens so keyboard/screen-reader users
+  // land inside it instead of staying behind it on the page.
+  const dialogRef = useRef(null);
+  useEffect(() => {
+    dialogRef.current?.focus();
+  }, []);
+
   const isHost = me && event && me.user_id === event.host_id;
   const myRsvp = me ? rsvps.find((r) => r.user_id === me.user_id) : null;
   const goingCount = rsvps.filter((r) => r.status === "going").length;
@@ -129,7 +136,15 @@ export default function EventDetailModal({ eventId, onClose }) {
 
   return (
     <div className="event-modal-backdrop" onClick={onClose}>
-      <div className="event-modal card" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="event-modal card"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Event details"
+        tabIndex={-1}
+        ref={dialogRef}
+        onClick={(e) => e.stopPropagation()}
+      >
         <button type="button" className="event-modal-close" onClick={onClose} aria-label="Close">
           ×
         </button>
