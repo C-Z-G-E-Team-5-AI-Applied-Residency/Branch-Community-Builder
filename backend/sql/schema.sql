@@ -44,9 +44,6 @@ CREATE TABLE events (
     geo             GEOGRAPHY(POINT, 4326) GENERATED ALWAYS AS
                         (ST_SetSRID(ST_MakePoint(longitude, latitude), 4326)::geography) STORED,
     check_in_code   TEXT,
-    flyer_url       TEXT,            -- template asset path, or /api/events/{id}/flyer once uploaded
-    flyer_data      BYTEA,           -- uploaded flyer bytes (served at /api/events/{id}/flyer)
-    flyer_mime      TEXT,
     why             TEXT,            -- host's stated purpose (matchmaking + guardrail)
     review_status   TEXT NOT NULL DEFAULT 'approved',  -- 'approved' | 'pending' | 'rejected'
     review_summary  TEXT,            -- AI one-line summary shown on the review card
