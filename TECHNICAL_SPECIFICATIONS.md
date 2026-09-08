@@ -48,9 +48,6 @@ Companion to the main [README](README.md): full database schema, API contract, a
 | longitude         | DOUBLE PRECISION NOT NULL                                                                                                                     |
 | latitude          | DOUBLE PRECISION NOT NULL                                                                                                                     |
 | check_in_code     | TEXT                                                                                                                                          |
-| flyer_url         | TEXT — template asset path, or `/api/events/{id}/flyer` once bytes are uploaded (nullable)                                                    |
-| flyer_data        | BYTEA — uploaded flyer bytes, served at `GET /api/events/{id}/flyer` (nullable)                                                                |
-| flyer_mime        | TEXT — MIME type of `flyer_data` (nullable)                                                                                                   |
 | why               | TEXT — host's stated purpose for the event; fed to the AI matchmaker and the mission guardrail (nullable)                                     |
 | review_status     | TEXT NOT NULL DEFAULT 'approved' — mission guardrail outcome, one of `'approved'` \| `'pending'` \| `'rejected'`                               |
 | review_summary    | TEXT — AI one-line summary of the event, shown on the moderation review card (nullable)                                                       |
@@ -319,7 +316,7 @@ Returns events, with optional filtering by zip code, proximity, date, status, or
   - `?after=` filter for events on/after a given ISO date
   - `?tag_id=` filter to events tagged with a given tag
 - **Response:**
-  - Success: `[{ event_id, title, event_date, event_end_date, location, event_zip_code, event_description, event_capacity, why, status, review_status, host_id, event_image_url, flyer_url, latitude, longitude, tags: [{ tag_id, name }, ...], check_in_opens_before_hours }, ...]` 200
+  - Success: `[{ event_id, title, event_date, event_end_date, location, event_zip_code, event_description, event_capacity, why, status, review_status, host_id, event_image_url, latitude, longitude, tags: [{ tag_id, name }, ...], check_in_opens_before_hours }, ...]` 200
 
 **GET /api/events/pending-review**
 
@@ -337,7 +334,7 @@ Returns a single event's details. `check_in_code` is included only when the requ
 
 - **Request Body:** None
 - **Response:**
-  - Success: `{ event_id, title, event_date, event_end_date, location, event_zip_code, event_description, event_capacity, why, status, review_status, host_id, event_image_url, flyer_url, latitude, longitude, tags: [...], check_in_opens_before_hours, check_in_code?, review_summary?, review_reason? }` 200
+  - Success: `{ event_id, title, event_date, event_end_date, location, event_zip_code, event_description, event_capacity, why, status, review_status, host_id, event_image_url, latitude, longitude, tags: [...], check_in_opens_before_hours, check_in_code?, review_summary?, review_reason? }` 200
   - Error, Not Found: `{ message }` 404
 
 **PATCH /api/events/:event_id/review**
@@ -382,52 +379,6 @@ Deletes an event. Only the host may delete it. Cascades to associated RSVPs, eve
 - **Request Body:** None
 - **Response:**
   - Success: `{ message }` 200
-  - Error, Not Authenticated: `{ message }` 401
-  - Error, Unauthorized: `{ message }` 403
-  - Error, Not Found: `{ message }` 404
-
-### Event Flyers
-
-**PUT /api/events/:event_id/flyer**
-
-Uploads a custom flyer image for an event. Multipart form upload (`file`), host only.
-
-- **Request Body:** `multipart/form-data` with a `file` field — JPEG/PNG/WebP/GIF, ≤2 MB (magic-byte validated).
-- **Response:**
-  - Success: event object (with `check_in_code` included) 200 — `flyer_url` becomes a content-hash-versioned URL, `/api/events/:event_id/flyer?v=<hash>`
-  - Error, Not Authenticated: `{ message }` 401
-  - Error, Unauthorized: `{ message }` 403
-  - Error, Not Found: `{ message }` 404
-  - Error, Too Large (>2 MB): `{ message }` 413
-  - Error, Unsupported Type: `{ message }` 415
-
-**GET /api/events/:event_id/flyer**
-
-Serves the stored flyer image bytes (long-lived cache headers), for use as an `<img src>`.
-
-- **Request Body:** None
-- **Response:**
-  - Success: raw image bytes with the stored MIME type 200
-  - Error, Not Found (no event, or no uploaded flyer): `{ message }` 404
-
-**PUT /api/events/:event_id/flyer/template**
-
-Selects a prebuilt flyer template instead of uploading a custom image. Host only.
-
-- **Request Body:** `{ template_id }` — one of `"classic"` \| `"bold"` \| `"minimal"`
-- **Response:**
-  - Success: event object (with `check_in_code` included) 200 — `flyer_url` is set to the template's static asset path; any previously uploaded flyer bytes are cleared
-  - Error, Not Authenticated: `{ message }` 401
-  - Error, Unauthorized: `{ message }` 403
-  - Error, Not Found (event, or unknown `template_id`): `{ message }` 404
-
-**DELETE /api/events/:event_id/flyer**
-
-Removes the event's flyer (uploaded or template), reverting `flyer_url` to `event_image_url`. Host only.
-
-- **Request Body:** None
-- **Response:**
-  - Success: 204 (no body)
   - Error, Not Authenticated: `{ message }` 401
   - Error, Unauthorized: `{ message }` 403
   - Error, Not Found: `{ message }` 404
@@ -850,11 +801,11 @@ This project will make use of the following technologies, 3rd-Party APIs, and ne
 - **passlib[bcrypt]** — hashes passwords into `users.password_hash` at signup and verifies them at login. Pinned alongside `bcrypt==4.0.1` in `requirements.txt`, since passlib 1.7.4 is incompatible with `bcrypt>=4.1`.
 - **itsdangerous** — signs the session cookie for Starlette's `SessionMiddleware`, which backs `request.session["user_id"]` (login/signup/logout, and every `require_user`/`require_admin`-gated route).
 - **pydantic-settings** — loads `backend/.env` into the typed `Settings` object (`app/config.py`): `DATABASE_URL`, `SESSION_SECRET`, `GEMINI_API_KEY`, `FRONTEND_ORIGIN`, `SESSION_COOKIE_SECURE`, `ADMIN_EMAILS`.
-- **python-multipart** — required by FastAPI to parse the `multipart/form-data` bodies used by the profile picture and event flyer upload endpoints (`UploadFile`).
+- **python-multipart** — required by FastAPI to parse the `multipart/form-data` bodies used by the profile picture upload endpoint (`UploadFile`).
 - **pytest** — the backend test runner (`backend/tests/`); unit tests cover the Gemini-calling services with the API stubbed out, and endpoint tests run inside a rolled-back transaction so they never commit rows.
 - **qrcode.react** — renders the host's check-in QR code on-screen from the event's `check_in_code`. Runs entirely client-side; no API or key.
 - **html5-qrcode** — lets an attendee scan the host's QR through their device camera; the decoded code is posted to `POST /api/events/:event_id/check-in` to verify attendance. Also fully client-side.
-- **react-easy-crop** — lets a user crop their profile picture (and event flyer) client-side before it's uploaded, so the server always receives a pre-cropped image.
+- **react-easy-crop** — lets a user crop their profile picture client-side before it's uploaded, so the server always receives a pre-cropped image.
 
 **Data Source**
 
