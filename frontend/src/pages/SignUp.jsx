@@ -110,9 +110,7 @@ export default function SignUp() {
     setError(null);
     setBusy(true);
     try {
-      for (const tagId of picked) {
-        await api.addInterest(user.user_id, tagId);
-      }
+      await Promise.all(picked.map((tagId) => api.addInterest(user.user_id, tagId)));
       if (intent.trim()) {
         await api.updateProfile(user.user_id, { intent: intent.trim() });
       }
@@ -130,7 +128,7 @@ export default function SignUp() {
         {step === "account"
           ? "Create Account"
           : step === "tutorial"
-            ? "How Branch Works"
+            ? "How BRANCH Works"
             : "Set Up Your Profile"}
       </h1>
       {error && <p role="alert" style={{ color: "crimson" }}>{error}</p>}

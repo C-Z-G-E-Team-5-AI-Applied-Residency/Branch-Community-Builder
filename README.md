@@ -29,7 +29,7 @@ they actually showed up. Success is measured by doors walked through, not screen
 - **Database:** PostgreSQL + PostGIS
 - **AI:** Google Gemini (`google-genai` SDK) — event matchmaking recommendations and content moderation
 - **Geocoding:** Nominatim (OpenStreetMap)
-- **Testing:** pytest (backend)
+- **Testing:** pytest (backend), Vitest + React Testing Library (frontend)
 
 ## Repo layout
 
@@ -112,6 +112,9 @@ cd frontend
 npm install
 cp .env.example .env          # VITE_API_URL=http://localhost:8000
 npm run dev                   # http://localhost:5173
+
+# Tests (Vitest + React Testing Library, jsdom — no backend or browser needed)
+npm test                      # from frontend/
 ```
 
 ## Team

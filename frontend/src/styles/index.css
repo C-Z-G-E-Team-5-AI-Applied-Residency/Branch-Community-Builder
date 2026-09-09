@@ -21,6 +21,23 @@
 
 * { box-sizing: border-box; }
 
+/* Skip-to-content link: off-screen until a keyboard user tabs to it, so they can
+   jump past the header nav straight to the page content. */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  z-index: 3000;
+  padding: 0.6rem 1rem;
+  background: var(--panel);
+  color: var(--green-dark);
+  border: 1px solid var(--line);
+  border-radius: 0 0 var(--radius) 0;
+}
+.skip-link:focus {
+  left: 0;
+}
+
 body {
   margin: 0;
   font-family: "Avenir Next", "Trebuchet MS", system-ui, -apple-system, sans-serif;

@@ -91,6 +91,10 @@ export default function CreateEvent() {
     setError(null);
     setSubmitting(true);
     try {
+      if (new Date(form.event_end_date) <= new Date(form.event_date)) {
+        setError("End time must be after the start time.");
+        return;
+      }
       const point = await geocode(`${form.location} ${form.event_zip_code}`);
       if (!point) {
         setError("Could not find that address — try adding city/state.");
