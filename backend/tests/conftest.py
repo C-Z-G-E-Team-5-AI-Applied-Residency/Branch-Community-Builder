@@ -41,7 +41,14 @@ def db_isolation():
     try:
         yield session
     finally:
+        # Always return the connection to the pool, even if close()/rollback()
+        # raise — e.g. after the app's own IntegrityError handlers rolled the
+        # transaction back. Skipping connection.close() here leaks a pooled
+        # connection; enough leaks exhaust the pool and make a later, unrelated
+        # test fail intermittently ("connect timed out") under a full run.
         app.dependency_overrides.pop(get_db, None)
-        session.close()
-        transaction.rollback()
-        connection.close()
+        try:
+            session.close()
+            transaction.rollback()
+        finally:
+            connection.close()
