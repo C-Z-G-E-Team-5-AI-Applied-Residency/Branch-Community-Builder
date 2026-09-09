@@ -128,7 +128,7 @@ export default function SignUp() {
         {step === "account"
           ? "Create Account"
           : step === "tutorial"
-            ? "How Branch Works"
+            ? "How BRANCH Works"
             : "Set Up Your Profile"}
       </h1>
       {error && <p role="alert" style={{ color: "crimson" }}>{error}</p>}
