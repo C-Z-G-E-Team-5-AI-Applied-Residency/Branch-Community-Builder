@@ -6,7 +6,7 @@ export default function RecsSlide() {
   return (
     <div>
       <p>
-        Branch's AI matchmaker suggests events on your Discover page — each one
+        BRANCH's AI matchmaker suggests events on your Discover page — each one
         comes with the reason it was picked for you:
       </p>
       <EventCard

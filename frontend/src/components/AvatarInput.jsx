@@ -61,10 +61,15 @@ export default function AvatarInput({ currentSrc = null, onChange }) {
   }
 
   async function onApply() {
-    const file = await cropToFile(rawSrc, areaPixels);
-    setPreview(URL.createObjectURL(file));
-    onChange(file);
-    closeCropper();
+    if (!areaPixels) return; // crop area not measured yet — ignore an early Apply
+    try {
+      const file = await cropToFile(rawSrc, areaPixels);
+      setPreview(URL.createObjectURL(file));
+      onChange(file);
+      closeCropper();
+    } catch {
+      // cropping failed (e.g. canvas produced no blob) — leave the cropper open
+    }
   }
 
   function onClear() {

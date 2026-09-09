@@ -30,7 +30,7 @@ export default function CheckInSlide() {
           </button>
         )}
       </p>
-      <p>Check-ins build your community standing and teach Branch what you actually enjoy.</p>
+      <p>Check-ins build your community standing and teach BRANCH what you actually enjoy.</p>
     </div>
   );
 }

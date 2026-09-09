@@ -109,9 +109,11 @@ export default function Profile() {
   }
 
   // uploaded avatars are served by the API; anything else (old rows, dead
-  // paths) falls back to the bundled default via onError
-  const hasUpload = profile.profile_picture.startsWith("/api/");
-  const avatarSrc = hasUpload ? apiUrl(profile.profile_picture) : profile.profile_picture;
+  // paths, or a null picture) falls back to the bundled default.
+  const hasUpload = profile.profile_picture?.startsWith("/api/");
+  const avatarSrc = hasUpload
+    ? apiUrl(profile.profile_picture)
+    : profile.profile_picture || DEFAULT_AVATAR;
 
   return (
     <main>

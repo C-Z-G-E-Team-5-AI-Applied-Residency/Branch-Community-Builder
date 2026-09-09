@@ -28,7 +28,9 @@ function RequireAuth({ children }) {
 export default function App() {
   return (
     <>
+      <a href="#main-content" className="skip-link">Skip to main content</a>
       <Header />
+      <div id="main-content">
       <Routes>
         <Route path="/" element={<Navigate to="/discover" replace />} />
         <Route path="/signin" element={<SignIn />} />
@@ -51,6 +53,7 @@ export default function App() {
         <Route path="/review" element={<RequireAuth><Review /></RequireAuth>} />
         <Route path="/metrics" element={<RequireAuth><Metrics /></RequireAuth>} />
       </Routes>
+      </div>
       <Footer />
     </>
   );
