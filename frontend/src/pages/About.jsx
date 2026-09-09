@@ -51,10 +51,6 @@ const FEATURES = [
     title: "Weekly Prompts & Announcements",
     description: "Keep the conversation going between events with weekly community prompts and host announcements.",
   },
-  {
-    title: "Shareable Event Flyers",
-    description: "Generate printable, on-brand flyers for any event straight from the app.",
-  },
 ];
 
 const PERSONAS = [
