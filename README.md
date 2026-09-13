@@ -25,7 +25,7 @@ they actually showed up. Success is measured by doors walked through, not screen
 - **Frontend:** React 18 (Vite), react-router-dom, react-leaflet + Leaflet, qrcode.react, html5-qrcode, react-easy-crop
 - **Backend:** Python + FastAPI, Uvicorn, SQLAlchemy + psycopg, GeoAlchemy2, Pydantic + pydantic-settings
 - **Auth & sessions:** Starlette `SessionMiddleware` (cookie sessions) + passlib/bcrypt for password hashing
-- **File uploads:** python-multipart (profile picture / event flyer uploads)
+- **File uploads:** python-multipart (profile picture uploads)
 - **Database:** PostgreSQL + PostGIS
 - **AI:** Google Gemini (`google-genai` SDK) — event matchmaking recommendations and content moderation
 - **Geocoding:** Nominatim (OpenStreetMap)

@@ -24,10 +24,6 @@ class EventCreate(BaseModel):
     why: str | None = None
 
 
-class FlyerTemplateSelect(BaseModel):
-    template_id: str
-
-
 class EventUpdate(BaseModel):
     title: str | None = None
     event_date: datetime | None = None

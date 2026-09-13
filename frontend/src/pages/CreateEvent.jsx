@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { api } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
-import { FLYER_TEMPLATES } from "../flyerTemplates.js";
 
 const NOMINATIM_URL = "https://nominatim.openstreetmap.org/search";
 
@@ -41,9 +40,6 @@ export default function CreateEvent() {
   const [heldEvent, setHeldEvent] = useState(null); // set when the guardrail holds the new event
   const [submitting, setSubmitting] = useState(false);
   const [showHint, setShowHint] = useState(() => me && !localStorage.getItem(hintKey(me.user_id)));
-  const [flyerFile, setFlyerFile] = useState(null);
-  const [flyerTemplateId, setFlyerTemplateId] = useState(null);
-  const [dragActive, setDragActive] = useState(false);
 
   function dismissHint() {
     localStorage.setItem(hintKey(me.user_id), "1");
@@ -90,22 +86,6 @@ export default function CreateEvent() {
     }
   }
 
-  // A created event can only end up with one flyer source, so picking one clears the other.
-  function pickFlyerFile(file) {
-    setFlyerFile(file);
-    if (file) setFlyerTemplateId(null);
-  }
-  function pickFlyerTemplate(templateId) {
-    setFlyerTemplateId(templateId);
-    setFlyerFile(null);
-  }
-
-  function onFlyerDrop(e) {
-    e.preventDefault();
-    setDragActive(false);
-    pickFlyerFile(e.dataTransfer.files[0] ?? null);
-  }
-
   async function onSubmit(e) {
     e.preventDefault();
     setError(null);
@@ -130,16 +110,6 @@ export default function CreateEvent() {
         longitude: point.lng,
         tag_names: chosenTags,
       });
-
-      // Flyer needs the event's id, so it can only be attached after creation.
-      // Best-effort: the event is already created either way, and the host can
-      // manage/retry the flyer from the event page if this fails.
-      try {
-        if (flyerFile) await api.uploadEventFlyer(event.event_id, flyerFile);
-        else if (flyerTemplateId) await api.selectFlyerTemplate(event.event_id, flyerTemplateId);
-      } catch {
-        // ignored — see comment above
-      }
 
       // The mission guardrail may hold an event for review; if so, don't drop the
       // host onto a page that looks live — tell them it's pending first.
@@ -239,61 +209,6 @@ export default function CreateEvent() {
           Image URL
           <input value={form.event_image_url} onChange={set("event_image_url")} />
         </label>
-
-        <fieldset>
-          <legend>Flyer (optional)</legend>
-          <div
-            onDragOver={(e) => {
-              e.preventDefault();
-              setDragActive(true);
-            }}
-            onDragLeave={() => setDragActive(false)}
-            onDrop={onFlyerDrop}
-            style={{
-              border: dragActive ? "2px solid #7c9473" : "2px dashed #ccc",
-              borderRadius: "8px",
-              padding: "1rem",
-              textAlign: "center",
-            }}
-          >
-            {flyerFile ? (
-              <p>{flyerFile.name}</p>
-            ) : (
-              <p>Drag &amp; drop a flyer image here, or choose a file below.</p>
-            )}
-            <input
-              type="file"
-              accept="image/jpeg,image/png,image/webp,image/gif"
-              onChange={(e) => pickFlyerFile(e.target.files[0] ?? null)}
-            />
-            {flyerFile && (
-              <button type="button" onClick={() => pickFlyerFile(null)}>
-                Clear
-              </button>
-            )}
-          </div>
-
-          <p>Or pick a template:</p>
-          <div style={{ display: "flex", gap: "0.75rem" }}>
-            {FLYER_TEMPLATES.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => pickFlyerTemplate(t.id)}
-                style={{
-                  display: "block",
-                  padding: "0.25rem",
-                  border: flyerTemplateId === t.id ? "2px solid #7c9473" : "2px solid transparent",
-                  background: "none",
-                  borderRadius: "4px",
-                }}
-              >
-                <img src={t.src} alt={t.label} width={80} />
-                <div>{t.label}</div>
-              </button>
-            ))}
-          </div>
-        </fieldset>
 
         <fieldset>
           <legend>Tags</legend>
