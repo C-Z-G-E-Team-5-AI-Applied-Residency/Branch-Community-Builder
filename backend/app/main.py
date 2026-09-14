@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from starlette.middleware.sessions import SessionMiddleware
 
 from app.config import settings
+from app.core.session import ClockSkewTolerantSessionMiddleware
 from app.routers import auth, users, profiles, events, rsvps, neighborhoods, tags, prompts, me, metrics
 
 app = FastAPI(title="BRANCH API", version="0.1.0")
@@ -12,7 +12,7 @@ app = FastAPI(title="BRANCH API", version="0.1.0")
 # would make it a third-party cookie, which browsers block across
 # *.onrender.com subdomains.
 app.add_middleware(
-    SessionMiddleware,
+    ClockSkewTolerantSessionMiddleware,
     secret_key=settings.session_secret,
     same_site="lax",
     https_only=settings.session_cookie_secure,
